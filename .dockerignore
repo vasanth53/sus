@@ -1,0 +1,10 @@
+.git
+**/.git
+
+**/node_modules
+**/build
+**/.cache
+**/.DS_Store
+
+npm-debug.log
+yarn-error.log
