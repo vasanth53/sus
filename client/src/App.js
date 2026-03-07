@@ -12,8 +12,11 @@ const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || DEFAULT_SOCKET_URL;
 function App() {
   // General State
   const [socket, setSocket] = useState(null);
+  const [mySocketId, setMySocketId] = useState(null);
   const [name, setName] = useState('');
+  const [pin, setPin] = useState('');
   const [hasJoined, setHasJoined] = useState(false);
+  const [joinPending, setJoinPending] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState('connecting'); // connecting, connected, disconnected, error
   
   // Lobby State
@@ -39,12 +42,19 @@ function App() {
     setSocket(newSocket);
 
     // --- General Listeners ---
-    newSocket.on('connect', () => setConnectionStatus('connected'));
+    newSocket.on('connect', () => {
+      setConnectionStatus('connected');
+      setMySocketId(newSocket.id);
+    });
     newSocket.on('disconnect', () => setConnectionStatus('disconnected'));
     newSocket.on('connect_error', () => setConnectionStatus('error'));
 
     newSocket.on('updatePlayerList', (players) => setLobbyPlayers(players));
     newSocket.on('gameInProgress', () => alert("A game is already in progress. Please wait."));
+    newSocket.on('authError', () => setLastToast({ type: 'warning', message: 'Wrong PIN. Try again.' }));
+    newSocket.on('nameTaken', () => setLastToast({ type: 'warning', message: 'That name is already taken.' }));
+    newSocket.on('lobbyFull', () => setLastToast({ type: 'warning', message: 'Lobby is full.' }));
+    newSocket.on('joinError', (data) => setLastToast({ type: 'warning', message: `Join failed: ${data?.error || 'unknown'}` }));
     newSocket.on('gameReset', () => {
       setGameState('lobby');
       setWord('');
@@ -116,10 +126,29 @@ function App() {
   // --- Handlers ---
   const handleJoinGame = (e) => {
     e.preventDefault();
-    if (name.trim() && socket) {
-      socket.emit('joinGame', name);
-      setHasJoined(true);
-    }
+    if (!socket || !name.trim() || joinPending) return;
+
+    setJoinPending(true);
+    let settled = false;
+    const timeoutId = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      setJoinPending(false);
+      setLastToast({ type: 'warning', message: 'Join timed out. Is the server running?' });
+    }, 1200);
+
+    socket.emit('joinGame', { name, pin }, (res) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
+      setJoinPending(false);
+      if (res?.ok) {
+        setHasJoined(true);
+        setLastToast({ type: 'success', message: res?.isHost ? 'Joined as host.' : 'Joined the lobby.' });
+      } else {
+        setLastToast({ type: 'warning', message: `Join failed: ${res?.error || 'unknown'}` });
+      }
+    });
   };
 
   const handleStartGame = () => socket && socket.emit('startGame');
@@ -141,6 +170,9 @@ function App() {
   };
 
   const isMyTurn = gameState === 'clue-giving' && name === currentPlayer;
+  const isHost =
+    hasJoined &&
+    (lobbyPlayers.find((p) => p.id === mySocketId)?.isHost || lobbyPlayers.find((p) => p.name === name)?.isHost);
   const roleLabel = role === 'imposter' ? 'Imposter' : role === 'crewmate' ? 'Crewmate' : '';
   const roleTone = role === 'imposter' ? 'danger' : role === 'crewmate' ? 'success' : 'neutral';
 
@@ -177,10 +209,24 @@ function App() {
               maxLength={18}
               autoComplete="nickname"
             />
-            <button className="Button Primary" type="submit" disabled={!name.trim() || !socket}>
-              Join
+            <button
+              className="Button Primary"
+              type="submit"
+              disabled={!name.trim() || !socket || joinPending || connectionStatus !== 'connected'}
+            >
+              {joinPending ? 'Joining…' : 'Join'}
             </button>
           </form>
+          <div className="FormRow" style={{ marginTop: 10 }}>
+            <input
+              className="Input"
+              type="password"
+              value={pin}
+              onChange={(e) => setPin(e.target.value)}
+              placeholder="Game PIN (optional)"
+              autoComplete="off"
+            />
+          </div>
           <div className="MetaRow">
             <span className={`Pill ${connectionStatus === 'connected' ? 'PillOk' : 'PillWarn'}`}>
               {connectionStatus === 'connected' ? 'Connected' : connectionStatus === 'connecting' ? 'Connecting…' : 'Offline'}
@@ -197,17 +243,20 @@ function App() {
           <div className="Grid">
             <div className="Card">
               <h2 className="CardTitle">Lobby</h2>
-              <p className="CardHint">Welcome, <span className="Strong">{name}</span>. Need at least 2 players to start.</p>
+              <p className="CardHint">
+                Welcome, <span className="Strong">{name}</span>. {isHost ? 'You are the host.' : 'Waiting for host to start.'}
+              </p>
               <div className="PlayerList">
                 {lobbyPlayers.map((p) => (
                   <div className="PlayerRow" key={p.id}>
                     <div className="Avatar" aria-hidden="true">{(p.name || '?')[0]?.toUpperCase()}</div>
-                    <div className="PlayerName">{p.name}</div>
+                    <div className="PlayerName">{p.name}{p.name === name ? ' (you)' : ''}</div>
+                    {p.isHost && <span className="Pill PillNeutral">HOST</span>}
                   </div>
                 ))}
               </div>
               <div className="Actions">
-                <button className="Button Primary" onClick={handleStartGame} disabled={lobbyPlayers.length < 2 || !socket}>
+                <button className="Button Primary" onClick={handleStartGame} disabled={lobbyPlayers.length < 2 || !socket || !isHost}>
                   Start round
                 </button>
               </div>

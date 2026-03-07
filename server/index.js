@@ -3,6 +3,13 @@ const http = require('http');
 const { Server } = require("socket.io");
 
 const app = express();
+app.disable('x-powered-by');
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  next();
+});
+
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
@@ -15,6 +22,7 @@ const io = new Server(server, {
 function createInitialState() {
   return {
     players: {},
+    hostId: null,
     gameState: 'lobby', // lobby, clue-giving, voting, game-over
     secretWord: '',
     turnOrder: [],
@@ -35,6 +43,51 @@ const state = createInitialState();
 const WORDS = ["Apple", "Bicycle", "Telescope", "Guitar", "Sunshine", "Ocean"];
 const TURN_SECONDS = Number(process.env.TURN_SECONDS || 30);
 const VOTING_SECONDS = Number(process.env.VOTING_SECONDS || 25);
+const GAME_PIN = process.env.GAME_PIN ? String(process.env.GAME_PIN) : null;
+const MAX_PLAYERS = Number(process.env.MAX_PLAYERS || 10);
+const NAME_MAX_LENGTH = 18;
+const CLUE_MAX_LENGTH = 32;
+
+function sanitizeText(value) {
+  if (typeof value !== 'string') return '';
+  return value.replace(/[\u0000-\u001F\u007F]/g, '').trim().replace(/\s+/g, ' ');
+}
+
+function isNameTaken(nextState, name) {
+  const lower = name.toLowerCase();
+  return Object.values(nextState.players).some((p) => (p?.name || '').toLowerCase() === lower);
+}
+
+function broadcastLobby(ioInstance, currentState) {
+  ioInstance.emit(
+    'updatePlayerList',
+    Object.values(currentState.players).map((p) => ({
+      id: p.id,
+      name: p.name,
+      isAlive: Boolean(p.isAlive),
+      isHost: p.id === currentState.hostId,
+    })),
+  );
+}
+
+function rateLimit(socket, event, { windowMs, max }) {
+  if (!socket.data) socket.data = {};
+  if (!socket.data.rateLimits) socket.data.rateLimits = new Map();
+
+  const now = Date.now();
+  const existing = socket.data.rateLimits.get(event);
+  if (!existing || now >= existing.resetAt) {
+    socket.data.rateLimits.set(event, { count: 1, resetAt: now + windowMs });
+    return { ok: true };
+  }
+
+  if (existing.count >= max) {
+    return { ok: false, retryAfterMs: Math.max(0, existing.resetAt - now) };
+  }
+
+  existing.count += 1;
+  return { ok: true };
+}
 
 function stopIntervals(nextState) {
   if (nextState.timers?.turnInterval) clearInterval(nextState.timers.turnInterval);
@@ -71,7 +124,7 @@ function resetGame(nextState, ioInstance) {
 
   if (resolvedIo) {
     resolvedIo.emit('gameReset');
-    resolvedIo.emit('updatePlayerList', Object.values(resolvedState.players));
+    broadcastLobby(resolvedIo, resolvedState);
   }
 }
 
@@ -180,8 +233,10 @@ function createConnectionHandler(ioInstance, currentState) {
     const currentPlayer = currentId ? currentState.players[currentId] : null;
     if (!currentId || !currentPlayer) return;
 
-    currentState.clues.push({ sender: currentPlayer.name, clue: clueText });
-    ioInstance.emit('newClue', { sender: currentPlayer.name, clue: clueText });
+    const cleaned = sanitizeText(clueText).slice(0, CLUE_MAX_LENGTH);
+    const finalClue = cleaned || '(skipped)';
+    currentState.clues.push({ sender: currentPlayer.name, clue: finalClue });
+    ioInstance.emit('newClue', { sender: currentPlayer.name, clue: finalClue });
 
     currentState.currentPlayerIndex++;
     if (currentState.currentPlayerIndex >= currentState.turnOrder.length) {
@@ -224,17 +279,68 @@ function createConnectionHandler(ioInstance, currentState) {
   }
 
   return (socket) => {
-    socket.emit('updatePlayerList', Object.values(currentState.players));
+    socket.emit(
+      'updatePlayerList',
+      Object.values(currentState.players).map((p) => ({
+        id: p.id,
+        name: p.name,
+        isAlive: Boolean(p.isAlive),
+        isHost: p.id === currentState.hostId,
+      })),
+    );
 
-    socket.on('joinGame', (name) => {
+    socket.on('joinGame', (payload, ack) => {
+      const limit = rateLimit(socket, 'joinGame', { windowMs: 5000, max: 3 });
+      if (!limit.ok) {
+        ack?.({ ok: false, error: 'rate_limited', retryAfterMs: limit.retryAfterMs });
+        return;
+      }
+
       if (currentState.gameState !== 'lobby') {
+        ack?.({ ok: false, error: 'game_in_progress' });
         return socket.emit('gameInProgress');
       }
-      currentState.players[socket.id] = { id: socket.id, name, isAlive: true };
-      ioInstance.emit('updatePlayerList', Object.values(currentState.players));
+
+      if (currentState.players[socket.id]) {
+        ack?.({ ok: true, isHost: socket.id === currentState.hostId });
+        return;
+      }
+
+      if (Object.keys(currentState.players).length >= MAX_PLAYERS) {
+        ack?.({ ok: false, error: 'lobby_full' });
+        return socket.emit('lobbyFull');
+      }
+
+      const name = sanitizeText(typeof payload === 'string' ? payload : payload?.name);
+      const pin = sanitizeText(typeof payload === 'object' && payload ? payload.pin : '');
+
+      if (!name || name.length > NAME_MAX_LENGTH) {
+        ack?.({ ok: false, error: 'invalid_name' });
+        return socket.emit('joinError', { error: 'invalid_name' });
+      }
+
+      if (GAME_PIN && pin !== GAME_PIN) {
+        ack?.({ ok: false, error: 'auth_failed' });
+        return socket.emit('authError', { error: 'auth_failed' });
+      }
+
+      if (isNameTaken(currentState, name)) {
+        ack?.({ ok: false, error: 'name_taken' });
+        return socket.emit('nameTaken');
+      }
+
+      currentState.players[socket.id] = { id: socket.id, name, isAlive: true, hasVoted: false };
+      if (!currentState.hostId) currentState.hostId = socket.id;
+
+      broadcastLobby(ioInstance, currentState);
+      ack?.({ ok: true, isHost: socket.id === currentState.hostId });
     });
 
     socket.on('startGame', () => {
+      const limit = rateLimit(socket, 'startGame', { windowMs: 8000, max: 2 });
+      if (!limit.ok) return;
+      if (!currentState.players[socket.id]) return;
+      if (currentState.hostId && socket.id !== currentState.hostId) return;
       if (currentState.gameState !== 'lobby' || Object.keys(currentState.players).length < 2) return;
 
       currentState.gameState = 'clue-giving';
@@ -266,13 +372,19 @@ function createConnectionHandler(ioInstance, currentState) {
     });
 
     socket.on('submitClue', (clue) => {
+      const limit = rateLimit(socket, 'submitClue', { windowMs: 2500, max: 5 });
+      if (!limit.ok) return;
       if (currentState.gameState !== 'clue-giving' || socket.id !== currentState.turnOrder[currentState.currentPlayerIndex]) return;
+      const cleaned = sanitizeText(clue);
+      if (!cleaned || cleaned.length > CLUE_MAX_LENGTH) return;
       if (currentState.timers.turnInterval) clearInterval(currentState.timers.turnInterval);
       currentState.timers.turnInterval = null;
-      advanceWithClue(clue);
+      advanceWithClue(cleaned);
     });
 
     socket.on('castVote', (votedPlayerId) => {
+      const limit = rateLimit(socket, 'castVote', { windowMs: 2500, max: 6 });
+      if (!limit.ok) return;
       if (currentState.gameState !== 'voting' || !currentState.players[socket.id] || currentState.players[socket.id].hasVoted) return;
       if (!votedPlayerId || !currentState.players[votedPlayerId] || !currentState.players[votedPlayerId].isAlive) return;
 
@@ -290,7 +402,11 @@ function createConnectionHandler(ioInstance, currentState) {
     socket.on('disconnect', () => {
       if (currentState.players[socket.id]) {
         delete currentState.players[socket.id];
-        ioInstance.emit('updatePlayerList', Object.values(currentState.players));
+        if (currentState.hostId === socket.id) {
+          currentState.hostId = Object.keys(currentState.players)[0] || null;
+          ioInstance.emit('hostChanged', { hostId: currentState.hostId });
+        }
+        broadcastLobby(ioInstance, currentState);
         if (currentState.gameState !== 'lobby' && Object.keys(currentState.players).length < 2) {
           resetGame(currentState, ioInstance);
           return;

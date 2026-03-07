@@ -116,4 +116,24 @@ describe("Imposter Game Server (unit)", () => {
     resetGame(state, io);
     expect(state.gameState).toBe("lobby");
   });
+
+  test("only the host can start the game", () => {
+    const state = createInitialState();
+    const io = createMockIo();
+    const onConnection = createConnectionHandler(io, state);
+
+    const a = io.connect(createMockSocket("a"), onConnection);
+    const b = io.connect(createMockSocket("b"), onConnection);
+
+    a.clientEmit("joinGame", "Host");
+    b.clientEmit("joinGame", "Guest");
+
+    expect(state.hostId).toBe("a");
+
+    b.clientEmit("startGame");
+    expect(state.gameState).toBe("lobby");
+
+    a.clientEmit("startGame");
+    expect(state.gameState).toBe("clue-giving");
+  });
 });
