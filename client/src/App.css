@@ -340,6 +340,19 @@
   align-items: center;
 }
 
+.JoinMode {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 10px 0 12px;
+}
+
+@media (min-width: 720px) {
+  .JoinMode {
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+  }
+}
+
 .Input {
   flex: 1;
   height: 42px;

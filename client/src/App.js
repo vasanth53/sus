@@ -28,6 +28,10 @@ function App() {
   const [hasJoined, setHasJoined] = useState(false);
   const [joinPending, setJoinPending] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState('connecting'); // connecting, connected, disconnected, error
+  const [joinMode, setJoinMode] = useState('public'); // public, quick, join-room, create-room
+  const [roomCode, setRoomCode] = useState('');
+  const [currentRoomId, setCurrentRoomId] = useState('public');
+  const [quickMatchQueued, setQuickMatchQueued] = useState(false);
   
   // Lobby State
   const [lobbyPlayers, setLobbyPlayers] = useState([]);
@@ -148,6 +152,7 @@ function App() {
     newSocket.on('stateSync', (data) => {
       if (!data) return;
       setHasJoined(true);
+      if (data.roomId) setCurrentRoomId(data.roomId);
       setGameState(data.gameState || 'lobby');
       setLobbyPlayers(data.lobbyPlayers || []);
       setTurnOrder(data.turnOrder || []);
@@ -166,7 +171,18 @@ function App() {
         setName(data.me.name || '');
         setWord(data.me.word || '');
         setHasVoted(Boolean(data.me.hasVoted));
+        if (data.me.token) {
+          setPlayerToken(data.me.token);
+          localStorage.setItem('imposter.token', data.me.token);
+          localStorage.setItem('imposter.name', data.me.name || '');
+        }
       }
+    });
+
+    newSocket.on('matchFound', (data) => {
+      setQuickMatchQueued(false);
+      if (data?.roomId) setCurrentRoomId(data.roomId);
+      setLastToast({ type: 'success', message: `Match found: ${data?.roomId}` });
     });
 
     newSocket.on('gameOver', (result) => {
@@ -183,9 +199,84 @@ function App() {
   }, []);
 
   // --- Handlers ---
+  const joinPayloadBase = () => {
+    const nextName = name.trim();
+    const storedName = (localStorage.getItem('imposter.name') || '').trim();
+    const storedToken = (localStorage.getItem('imposter.token') || '').trim();
+    const tokenCandidate = (playerToken || storedToken).trim();
+    const shouldSendToken = tokenCandidate && storedName.toLowerCase() === nextName.toLowerCase();
+    return { name: nextName, pin: pin.trim(), token: shouldSendToken ? tokenCandidate : '' };
+  };
+
   const handleJoinGame = (e) => {
     e.preventDefault();
     if (!socket || !name.trim() || !pin.trim() || joinPending) return;
+
+    if (joinMode === 'quick') {
+      if (quickMatchQueued) return;
+      setQuickMatchQueued(true);
+      socket.emit('quickMatch', { name: name.trim(), pin: pin.trim() }, (res) => {
+        if (!res?.ok) {
+          setQuickMatchQueued(false);
+          setLastToast({ type: 'warning', message: `Quick match failed: ${res?.error || 'unknown'}` });
+        } else {
+          setLastToast({ type: 'info', message: 'Queued for quick match…' });
+        }
+      });
+      return;
+    }
+
+    if (joinMode === 'create-room') {
+      setJoinPending(true);
+      socket.emit('createRoom', { pin: pin.trim() }, (res) => {
+        if (!res?.ok || !res?.roomId) {
+          setJoinPending(false);
+          setLastToast({ type: 'warning', message: `Create room failed: ${res?.error || 'unknown'}` });
+          return;
+        }
+        setRoomCode(res.roomId);
+        setCurrentRoomId(res.roomId);
+        socket.emit('joinRoom', { ...joinPayloadBase(), roomId: res.roomId }, (joinRes) => {
+          setJoinPending(false);
+          if (joinRes?.ok) {
+            setHasJoined(true);
+            if (joinRes?.playerId) setMyPlayerId(joinRes.playerId);
+            if (joinRes?.token) {
+              setPlayerToken(joinRes.token);
+              localStorage.setItem('imposter.token', joinRes.token);
+            }
+            localStorage.setItem('imposter.name', name.trim());
+            setLastToast({ type: 'success', message: `Created room ${res.roomId}` });
+          } else {
+            setLastToast({ type: 'warning', message: `Join failed: ${joinRes?.error || 'unknown'}` });
+          }
+        });
+      });
+      return;
+    }
+
+    if (joinMode === 'join-room') {
+      const code = roomCode.trim();
+      if (!code) return;
+      setJoinPending(true);
+      socket.emit('joinRoom', { ...joinPayloadBase(), roomId: code }, (res) => {
+        setJoinPending(false);
+        if (res?.ok) {
+          setHasJoined(true);
+          if (res?.playerId) setMyPlayerId(res.playerId);
+          if (res?.token) {
+            setPlayerToken(res.token);
+            localStorage.setItem('imposter.token', res.token);
+          }
+          localStorage.setItem('imposter.name', name.trim());
+          setCurrentRoomId(res.roomId || code);
+          setLastToast({ type: 'success', message: `Joined room ${res.roomId || code}` });
+        } else {
+          setLastToast({ type: 'warning', message: `Join failed: ${res?.error || 'unknown'}` });
+        }
+      });
+      return;
+    }
 
     setJoinPending(true);
     let settled = false;
@@ -196,15 +287,9 @@ function App() {
       setLastToast({ type: 'warning', message: 'Join timed out. Is the server running?' });
     }, 1200);
 
-    const nextName = name.trim();
-    const storedName = (localStorage.getItem('imposter.name') || '').trim();
-    const storedToken = (localStorage.getItem('imposter.token') || '').trim();
-    const tokenCandidate = (playerToken || storedToken).trim();
-    const shouldSendToken = tokenCandidate && storedName.toLowerCase() === nextName.toLowerCase();
-
     socket.emit(
       'joinGame',
-      { name: nextName, pin: pin.trim(), token: shouldSendToken ? tokenCandidate : '' },
+      joinPayloadBase(),
       (res) => {
       if (settled) return;
       settled = true;
@@ -217,7 +302,7 @@ function App() {
           setPlayerToken(res.token);
           localStorage.setItem('imposter.token', res.token);
         }
-        localStorage.setItem('imposter.name', nextName);
+        localStorage.setItem('imposter.name', name.trim());
         setLastToast({ type: 'success', message: res?.isHost ? 'Joined as host.' : 'Joined the lobby.' });
       } else {
         setLastToast({ type: 'warning', message: `Join failed: ${res?.error || 'unknown'}` });
@@ -285,6 +370,36 @@ function App() {
         <div className="Card">
           <h2 className="CardTitle">Join the lobby</h2>
           <p className="CardHint">Pick a name and wait for at least one other player.</p>
+          <div className="JoinMode">
+            <button
+              type="button"
+              className={`Button ${joinMode === 'public' ? 'Primary' : ''}`}
+              onClick={() => { setJoinMode('public'); setQuickMatchQueued(false); }}
+            >
+              Public
+            </button>
+            <button
+              type="button"
+              className={`Button ${joinMode === 'quick' ? 'Primary' : ''}`}
+              onClick={() => { setJoinMode('quick'); setQuickMatchQueued(false); }}
+            >
+              Quick Match
+            </button>
+            <button
+              type="button"
+              className={`Button ${joinMode === 'join-room' ? 'Primary' : ''}`}
+              onClick={() => { setJoinMode('join-room'); setQuickMatchQueued(false); }}
+            >
+              Join Room
+            </button>
+            <button
+              type="button"
+              className={`Button ${joinMode === 'create-room' ? 'Primary' : ''}`}
+              onClick={() => { setJoinMode('create-room'); setQuickMatchQueued(false); }}
+            >
+              Create Room
+            </button>
+          </div>
           <form onSubmit={handleJoinGame} className="FormRow">
             <input
               className="Input"
@@ -298,11 +413,38 @@ function App() {
             <button
               className="Button Primary"
               type="submit"
-              disabled={!name.trim() || !pin.trim() || !socket || joinPending || connectionStatus !== 'connected'}
+              disabled={
+                !name.trim() ||
+                !pin.trim() ||
+                !socket ||
+                joinPending ||
+                connectionStatus !== 'connected' ||
+                (joinMode === 'join-room' && !roomCode.trim()) ||
+                (joinMode === 'quick' && quickMatchQueued)
+              }
             >
-              {joinPending ? 'Joining…' : 'Join'}
+              {joinMode === 'quick'
+                ? (quickMatchQueued ? 'Queued…' : 'Queue')
+                : (joinPending ? 'Working…' : 'Join')}
             </button>
           </form>
+          {joinMode === 'join-room' && (
+            <div className="FormRow" style={{ marginTop: 10 }}>
+              <input
+                className="Input"
+                type="text"
+                value={roomCode}
+                onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
+                placeholder="Room code (e.g. R_ABC123)"
+                autoComplete="off"
+              />
+            </div>
+          )}
+          {joinMode === 'create-room' && roomCode.trim() && (
+            <div className="MetaRow">
+              <span className="Pill PillNeutral">Room: {roomCode}</span>
+            </div>
+          )}
           <div className="FormRow" style={{ marginTop: 10 }}>
             <input
               className="Input"
@@ -545,9 +687,9 @@ function App() {
               <span className={`Light ${gameState === 'voting' ? 'Warn' : 'Neutral'}`} />
               <span className={`Light ${gameState === 'game-over' ? 'Danger' : 'Neutral'}`} />
             </div>
-          <div className="ConsoleText">
-              {gameState.toUpperCase()} • {isHost ? 'HOST' : 'PLAYER'} • {name}
-          </div>
+            <div className="ConsoleText">
+              {currentRoomId} • {gameState.toUpperCase()} • {isHost ? 'HOST' : 'PLAYER'} • {name}
+            </div>
             <div className="ConsoleButtons">
               <span className="ConsoleBtn" />
               <span className="ConsoleBtn" />

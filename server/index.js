@@ -220,6 +220,7 @@ function buildStateSync(room, player) {
       isHost: player.id === room.hostPlayerId,
       word: player.word,
       hasVoted: Boolean(player.hasVoted),
+      token: player.token,
     },
     lobbyPlayers: publicPlayers(room),
     turnOrder: room.turnOrder.map((pid) => room.players[pid]?.name).filter(Boolean),
