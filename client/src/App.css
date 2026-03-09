@@ -21,39 +21,72 @@
   min-height: 100vh;
   position: relative;
   isolation: isolate;
-  background: linear-gradient(180deg, var(--bg0), var(--bg1));
+  background:
+    radial-gradient(900px 520px at 50% 18%, rgba(255, 255, 255, 0.05), transparent 60%),
+    radial-gradient(1200px 700px at 50% 100%, rgba(0, 0, 0, 0.65), transparent 65%),
+    linear-gradient(180deg, #070912, #0a0e1a);
   color: var(--text);
 }
 
-.App::before {
-  content: "";
+.SpaceView {
   position: fixed;
-  inset: 0;
+  left: 50%;
+  top: 86px;
+  transform: translateX(-50%);
+  width: min(1120px, calc(100% - 28px));
+  height: min(520px, 42vh);
   z-index: 0;
-  pointer-events: none;
-  background: var(--au-stars, none) repeat;
-  opacity: 0.22;
-  transform: translate3d(0, 0, 0);
-  animation: starsDrift 80s linear infinite;
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background:
+    var(--au-stars, none) 0 0 / 320px 180px repeat,
+    var(--au-parallax3, none) bottom center / cover no-repeat,
+    var(--au-parallax2, none) bottom center / cover no-repeat,
+    var(--au-parallax1, none) bottom center / cover no-repeat;
+  opacity: 0.9;
+  filter: saturate(1.02) contrast(1.05) brightness(0.92);
+  box-shadow:
+    0 40px 120px rgba(0, 0, 0, 0.65),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  overflow: hidden;
 }
 
-.App::after {
+.SpaceView::after {
   content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(800px 420px at 70% 30%, rgba(124, 92, 255, 0.18), transparent 60%),
+    radial-gradient(900px 520px at 20% 0%, rgba(56, 189, 248, 0.14), transparent 60%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.10), transparent 55%);
+  mix-blend-mode: screen;
+  opacity: 0.65;
+  pointer-events: none;
+}
+
+.SpaceView::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.06) 0px,
+    rgba(255, 255, 255, 0.03) 1px,
+    rgba(255, 255, 255, 0.00) 3px
+  );
+  opacity: 0.18;
+  pointer-events: none;
+}
+
+.CabinVignette {
   position: fixed;
   inset: 0;
   z-index: 0;
   pointer-events: none;
   background:
-    var(--au-parallax3, none) bottom center / cover no-repeat,
-    var(--au-parallax2, none) bottom center / cover no-repeat,
-    var(--au-parallax1, none) bottom center / cover no-repeat;
-  opacity: 0.35;
-  filter: saturate(1.05) contrast(1.05);
-}
-
-@keyframes starsDrift {
-  from { background-position: 0 0; }
-  to { background-position: -1200px 600px; }
+    radial-gradient(1200px 680px at 50% 18%, rgba(0, 0, 0, 0.12), transparent 55%),
+    radial-gradient(1400px 900px at 50% 100%, rgba(0, 0, 0, 0.78), transparent 60%);
 }
 
 .TopBar {
@@ -105,14 +138,149 @@
 .Main {
   max-width: 1040px;
   margin: 0 auto;
-  padding: 22px 18px 40px;
+  padding: 16px 18px 40px;
   position: relative;
   z-index: 1;
 }
 
+.MonitorFrame {
+  position: relative;
+  padding: 14px;
+  border-radius: 22px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03)),
+    radial-gradient(1200px 800px at 50% 0%, rgba(124, 92, 255, 0.10), transparent 65%),
+    rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 30px 120px rgba(0, 0, 0, 0.7),
+    inset 0 1px 0 rgba(255, 255, 255, 0.10);
+}
+
+.MonitorBezel {
+  position: absolute;
+  inset: 8px 8px 52px 8px;
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.18));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.35),
+    inset 0 10px 30px rgba(0, 0, 0, 0.55);
+}
+
+.MonitorScreen {
+  position: relative;
+  z-index: 1;
+  border-radius: 16px;
+  padding: 14px;
+  background:
+    radial-gradient(800px 420px at 20% 0%, rgba(56, 189, 248, 0.10), transparent 60%),
+    radial-gradient(900px 520px at 90% 0%, rgba(124, 92, 255, 0.12), transparent 60%),
+    rgba(6, 8, 14, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.45),
+    inset 0 18px 60px rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(10px);
+}
+
+.MonitorScreen::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.05) 0px,
+      rgba(255, 255, 255, 0.02) 1px,
+      rgba(255, 255, 255, 0.00) 3px
+    );
+  opacity: 0.12;
+  mix-blend-mode: overlay;
+}
+
+.ConsoleStrip {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  height: 38px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 12px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.ConsoleLights {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.Light {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.22);
+}
+
+.Light.Ok {
+  background: rgba(58, 210, 159, 0.85);
+  border-color: rgba(58, 210, 159, 0.65);
+  box-shadow: 0 0 18px rgba(58, 210, 159, 0.55), 0 0 0 2px rgba(0, 0, 0, 0.22);
+}
+
+.Light.Warn {
+  background: rgba(255, 209, 102, 0.9);
+  border-color: rgba(255, 209, 102, 0.65);
+  box-shadow: 0 0 18px rgba(255, 209, 102, 0.55), 0 0 0 2px rgba(0, 0, 0, 0.22);
+}
+
+.Light.Danger {
+  background: rgba(255, 93, 93, 0.9);
+  border-color: rgba(255, 93, 93, 0.65);
+  box-shadow: 0 0 18px rgba(255, 93, 93, 0.55), 0 0 0 2px rgba(0, 0, 0, 0.22);
+}
+
+.Light.Neutral {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.ConsoleText {
+  flex: 1;
+  text-align: center;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.68);
+  letter-spacing: 0.4px;
+}
+
+.ConsoleButtons {
+  display: flex;
+  gap: 8px;
+}
+
+.ConsoleBtn {
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10);
+}
+
 .Grid {
   display: grid;
-  grid-template-columns: 1.2fr 0.9fr 0.9fr;
+  grid-template-columns: 1.3fr 0.9fr;
   gap: 14px;
 }
 
@@ -123,15 +291,15 @@
 }
 
 .Card {
-  border: 1px solid var(--border);
-  background: linear-gradient(180deg, var(--card), rgba(255, 255, 255, 0.03));
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
   border-radius: 16px;
   padding: 16px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
 }
 
 .Card.Subtle {
-  background: linear-gradient(180deg, var(--card2), rgba(255, 255, 255, 0.02));
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.015));
 }
 
 .CardTitle {

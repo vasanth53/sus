@@ -490,6 +490,8 @@ function App() {
         '--au-parallax3': `url(${AMONG_US_ASSETS.parallax3})`,
       }}
     >
+      <div className="SpaceView" aria-hidden="true" />
+      <div className="CabinVignette" aria-hidden="true" />
       <div className="TopBar">
         <div className="Brand">
           <div className="LogoDot" aria-hidden="true" />
@@ -509,7 +511,28 @@ function App() {
       {lastToast?.message && <div className={`Toast ${lastToast.type || 'info'}`}>{lastToast.message}</div>}
 
       <main className="Main">
-        {renderContent()}
+        <div className="MonitorFrame">
+          <div className="MonitorBezel" aria-hidden="true" />
+          <div className="MonitorScreen">
+            {renderContent()}
+          </div>
+          <div className="ConsoleStrip" aria-hidden="true">
+            <div className="ConsoleLights">
+              <span className={`Light ${connectionStatus === 'connected' ? 'Ok' : 'Warn'}`} />
+              <span className={`Light ${gameState === 'clue-giving' ? 'Ok' : 'Neutral'}`} />
+              <span className={`Light ${gameState === 'voting' ? 'Warn' : 'Neutral'}`} />
+              <span className={`Light ${gameState === 'game-over' ? 'Danger' : 'Neutral'}`} />
+            </div>
+            <div className="ConsoleText">
+              {gameState.toUpperCase()} • {isHost ? 'HOST' : 'CREW'} • {name}
+            </div>
+            <div className="ConsoleButtons">
+              <span className="ConsoleBtn" />
+              <span className="ConsoleBtn" />
+              <span className="ConsoleBtn" />
+            </div>
+          </div>
+        </div>
       </main>
     </div>
   );
