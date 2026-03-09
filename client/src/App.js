@@ -12,9 +12,10 @@ const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || DEFAULT_SOCKET_URL;
 function App() {
   // General State
   const [socket, setSocket] = useState(null);
-  const [mySocketId, setMySocketId] = useState(null);
+  const [myPlayerId, setMyPlayerId] = useState(null);
   const [name, setName] = useState('');
   const [pin, setPin] = useState('');
+  const [playerToken, setPlayerToken] = useState('');
   const [hasJoined, setHasJoined] = useState(false);
   const [joinPending, setJoinPending] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState('connecting'); // connecting, connected, disconnected, error
@@ -38,13 +39,19 @@ function App() {
   const [lastToast, setLastToast] = useState(null);
 
   useEffect(() => {
+    const savedName = localStorage.getItem('imposter.name') || '';
+    const savedToken = localStorage.getItem('imposter.token') || '';
+    if (savedName) setName(savedName);
+    if (savedToken) setPlayerToken(savedToken);
+  }, []);
+
+  useEffect(() => {
     const newSocket = io(SOCKET_URL);
     setSocket(newSocket);
 
     // --- General Listeners ---
     newSocket.on('connect', () => {
       setConnectionStatus('connected');
-      setMySocketId(newSocket.id);
     });
     newSocket.on('disconnect', () => setConnectionStatus('disconnected'));
     newSocket.on('connect_error', () => setConnectionStatus('error'));
@@ -112,6 +119,27 @@ function App() {
       setVotingSecondsRemaining(data.secondsRemaining);
     });
 
+    newSocket.on('stateSync', (data) => {
+      if (!data) return;
+      setHasJoined(true);
+      setGameState(data.gameState || 'lobby');
+      setLobbyPlayers(data.lobbyPlayers || []);
+      setTurnOrder(data.turnOrder || []);
+      setCurrentPlayer(data.currentPlayer || '');
+      setClues(data.clues || []);
+      setVotablePlayers(data.votablePlayers || []);
+      setTurnSecondsRemaining(data.turnSecondsRemaining ?? null);
+      setVotingSecondsRemaining(data.votingSecondsRemaining ?? null);
+
+      if (data.me) {
+        setMyPlayerId(data.me.id || null);
+        setName(data.me.name || '');
+        setRole(data.me.role || '');
+        setWord(data.me.word || '');
+        setHasVoted(Boolean(data.me.hasVoted));
+      }
+    });
+
     newSocket.on('gameOver', (result) => {
       setGameState('game-over');
       setGameOverResult(result);
@@ -126,7 +154,7 @@ function App() {
   // --- Handlers ---
   const handleJoinGame = (e) => {
     e.preventDefault();
-    if (!socket || !name.trim() || joinPending) return;
+    if (!socket || !name.trim() || !pin.trim() || joinPending) return;
 
     setJoinPending(true);
     let settled = false;
@@ -137,13 +165,23 @@ function App() {
       setLastToast({ type: 'warning', message: 'Join timed out. Is the server running?' });
     }, 1200);
 
-    socket.emit('joinGame', { name, pin }, (res) => {
+    const nextName = name.trim();
+    const shouldSendToken =
+      playerToken && (localStorage.getItem('imposter.name') || '').toLowerCase() === nextName.toLowerCase();
+
+    socket.emit('joinGame', { name: nextName, pin: pin.trim(), token: shouldSendToken ? playerToken : '' }, (res) => {
       if (settled) return;
       settled = true;
       clearTimeout(timeoutId);
       setJoinPending(false);
       if (res?.ok) {
         setHasJoined(true);
+        if (res?.playerId) setMyPlayerId(res.playerId);
+        if (res?.token) {
+          setPlayerToken(res.token);
+          localStorage.setItem('imposter.token', res.token);
+        }
+        localStorage.setItem('imposter.name', nextName);
         setLastToast({ type: 'success', message: res?.isHost ? 'Joined as host.' : 'Joined the lobby.' });
       } else {
         setLastToast({ type: 'warning', message: `Join failed: ${res?.error || 'unknown'}` });
@@ -172,7 +210,7 @@ function App() {
   const isMyTurn = gameState === 'clue-giving' && name === currentPlayer;
   const isHost =
     hasJoined &&
-    (lobbyPlayers.find((p) => p.id === mySocketId)?.isHost || lobbyPlayers.find((p) => p.name === name)?.isHost);
+    (lobbyPlayers.find((p) => p.id === myPlayerId)?.isHost || lobbyPlayers.find((p) => p.name === name)?.isHost);
   const roleLabel = role === 'imposter' ? 'Imposter' : role === 'crewmate' ? 'Crewmate' : '';
   const roleTone = role === 'imposter' ? 'danger' : role === 'crewmate' ? 'success' : 'neutral';
 
@@ -212,7 +250,7 @@ function App() {
             <button
               className="Button Primary"
               type="submit"
-              disabled={!name.trim() || !socket || joinPending || connectionStatus !== 'connected'}
+              disabled={!name.trim() || !pin.trim() || !socket || joinPending || connectionStatus !== 'connected'}
             >
               {joinPending ? 'Joining…' : 'Join'}
             </button>
@@ -223,7 +261,7 @@ function App() {
               type="password"
               value={pin}
               onChange={(e) => setPin(e.target.value)}
-              placeholder="Game PIN (optional)"
+              placeholder="Game PIN (required)"
               autoComplete="off"
             />
           </div>
@@ -250,7 +288,7 @@ function App() {
                 {lobbyPlayers.map((p) => (
                   <div className="PlayerRow" key={p.id}>
                     <div className="Avatar" aria-hidden="true">{(p.name || '?')[0]?.toUpperCase()}</div>
-                    <div className="PlayerName">{p.name}{p.name === name ? ' (you)' : ''}</div>
+                    <div className="PlayerName">{p.name}{p.id === myPlayerId ? ' (you)' : ''}</div>
                     {p.isHost && <span className="Pill PillNeutral">HOST</span>}
                   </div>
                 ))}
@@ -368,8 +406,8 @@ function App() {
                     className="Button"
                     key={p.id}
                     onClick={() => handleVote(p.id)}
-                    disabled={hasVoted || p.name === name}
-                    title={p.name === name ? "You can’t vote for yourself" : `Vote ${p.name}`}
+                    disabled={hasVoted || p.id === myPlayerId}
+                    title={p.id === myPlayerId ? "You can’t vote for yourself" : `Vote ${p.name}`}
                   >
                     Vote {p.name}
                   </button>

@@ -46,7 +46,7 @@ Backend env vars:
 - `PORT` (default `3001`)
 - `HOST` (default `0.0.0.0`)
 - `CLIENT_ORIGIN` (default `http://localhost:3000`) — Socket.IO CORS origin
-- `GAME_PIN` (optional) — if set, players must enter this PIN to join
+- `GAME_PIN` (required) — players must enter this PIN to join
 - `MAX_PLAYERS` (default `10`)
 
 Frontend env vars (CRA build-time):

@@ -12,9 +12,9 @@ function createMockSocket(id) {
     emit(event, payload) {
       received.push({ event, payload });
     },
-    clientEmit(event, payload) {
+    clientEmit(event, payload, ack) {
       const handler = handlers.get(event);
-      if (handler) handler(payload);
+      if (handler) handler(payload, ack);
     },
     disconnect() {
       const handler = handlers.get("disconnect");
@@ -56,8 +56,8 @@ describe("Imposter Game Server (unit)", () => {
     const a = io.connect(createMockSocket("a"), onConnection);
     const b = io.connect(createMockSocket("b"), onConnection);
 
-    a.clientEmit("joinGame", "Player 1");
-    b.clientEmit("joinGame", "Player 2");
+    a.clientEmit("joinGame", { name: "Player 1", pin: "1234" });
+    b.clientEmit("joinGame", { name: "Player 2", pin: "1234" });
 
     expect(Object.keys(state.players)).toHaveLength(2);
     expect(Object.values(state.players).map((p) => p.name)).toEqual(expect.arrayContaining(["Player 1", "Player 2"]));
@@ -70,7 +70,7 @@ describe("Imposter Game Server (unit)", () => {
     const onConnection = createConnectionHandler(io, state);
 
     const a = io.connect(createMockSocket("a"), onConnection);
-    a.clientEmit("joinGame", "Solo");
+    a.clientEmit("joinGame", { name: "Solo", pin: "1234" });
     a.clientEmit("startGame");
 
     expect(state.gameState).toBe("lobby");
@@ -86,9 +86,9 @@ describe("Imposter Game Server (unit)", () => {
     const b = io.connect(createMockSocket("b"), onConnection);
     const c = io.connect(createMockSocket("c"), onConnection);
 
-    a.clientEmit("joinGame", "Player 1");
-    b.clientEmit("joinGame", "Player 2");
-    c.clientEmit("joinGame", "Player 3");
+    a.clientEmit("joinGame", { name: "Player 1", pin: "1234" });
+    b.clientEmit("joinGame", { name: "Player 2", pin: "1234" });
+    c.clientEmit("joinGame", { name: "Player 3", pin: "1234" });
 
     a.clientEmit("startGame");
 
@@ -125,10 +125,11 @@ describe("Imposter Game Server (unit)", () => {
     const a = io.connect(createMockSocket("a"), onConnection);
     const b = io.connect(createMockSocket("b"), onConnection);
 
-    a.clientEmit("joinGame", "Host");
-    b.clientEmit("joinGame", "Guest");
+    a.clientEmit("joinGame", { name: "Host", pin: "1234" });
+    b.clientEmit("joinGame", { name: "Guest", pin: "1234" });
 
-    expect(state.hostId).toBe("a");
+    const host = Object.values(state.players).find((p) => p.name === "Host");
+    expect(state.hostPlayerId).toBe(host.id);
 
     b.clientEmit("startGame");
     expect(state.gameState).toBe("lobby");

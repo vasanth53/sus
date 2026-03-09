@@ -1,5 +1,6 @@
 const express = require('express');
 const http = require('http');
+const crypto = require('crypto');
 const { Server } = require("socket.io");
 
 const app = express();
@@ -22,7 +23,8 @@ const io = new Server(server, {
 function createInitialState() {
   return {
     players: {},
-    hostId: null,
+    hostPlayerId: null,
+    socketToPlayerId: {},
     gameState: 'lobby', // lobby, clue-giving, voting, game-over
     secretWord: '',
     turnOrder: [],
@@ -43,10 +45,11 @@ const state = createInitialState();
 const WORDS = ["Apple", "Bicycle", "Telescope", "Guitar", "Sunshine", "Ocean"];
 const TURN_SECONDS = Number(process.env.TURN_SECONDS || 30);
 const VOTING_SECONDS = Number(process.env.VOTING_SECONDS || 25);
-const GAME_PIN = process.env.GAME_PIN ? String(process.env.GAME_PIN) : null;
+const GAME_PIN = String(process.env.GAME_PIN || '1234');
 const MAX_PLAYERS = Number(process.env.MAX_PLAYERS || 10);
 const NAME_MAX_LENGTH = 18;
 const CLUE_MAX_LENGTH = 32;
+const PRUNE_DISCONNECTED_AFTER_MS = Number(process.env.PRUNE_DISCONNECTED_AFTER_MS || 2 * 60 * 1000);
 
 function sanitizeText(value) {
   if (typeof value !== 'string') return '';
@@ -58,6 +61,38 @@ function isNameTaken(nextState, name) {
   return Object.values(nextState.players).some((p) => (p?.name || '').toLowerCase() === lower);
 }
 
+function findPlayerByName(nextState, name) {
+  const lower = name.toLowerCase();
+  return Object.values(nextState.players).find((p) => (p?.name || '').toLowerCase() === lower) || null;
+}
+
+function getPlayerBySocketId(nextState, socketId) {
+  const playerId = nextState.socketToPlayerId[socketId];
+  if (!playerId) return null;
+  return nextState.players[playerId] || null;
+}
+
+function generateToken(bytes = 24) {
+  return crypto.randomBytes(bytes).toString('hex');
+}
+
+function createPlayer(name) {
+  const id = generateToken(8);
+  return {
+    id,
+    name,
+    token: generateToken(24),
+    socketId: null,
+    connected: false,
+    disconnectedAtMs: null,
+    isAlive: true,
+    role: null,
+    word: null,
+    clue: null,
+    hasVoted: false,
+  };
+}
+
 function broadcastLobby(ioInstance, currentState) {
   ioInstance.emit(
     'updatePlayerList',
@@ -65,7 +100,8 @@ function broadcastLobby(ioInstance, currentState) {
       id: p.id,
       name: p.name,
       isAlive: Boolean(p.isAlive),
-      isHost: p.id === currentState.hostId,
+      connected: Boolean(p.connected),
+      isHost: p.id === currentState.hostPlayerId,
     })),
   );
 }
@@ -110,6 +146,21 @@ function resetGame(nextState, ioInstance) {
   resolvedState.currentPlayerIndex = 0;
   resolvedState.clues = [];
   resolvedState.votes = {};
+
+  const now = Date.now();
+  for (const id of Object.keys(resolvedState.players)) {
+    const player = resolvedState.players[id];
+    if (!player?.connected && player?.disconnectedAtMs && now - player.disconnectedAtMs > PRUNE_DISCONNECTED_AFTER_MS) {
+      delete resolvedState.players[id];
+    }
+  }
+  if (resolvedState.hostPlayerId && !resolvedState.players[resolvedState.hostPlayerId]) {
+    resolvedState.hostPlayerId = null;
+  }
+  if (!resolvedState.hostPlayerId) {
+    const firstConnected = Object.values(resolvedState.players).find((p) => p?.connected);
+    resolvedState.hostPlayerId = firstConnected?.id || Object.keys(resolvedState.players)[0] || null;
+  }
 
   for (const id of Object.keys(resolvedState.players)) {
     resolvedState.players[id] = {
@@ -227,6 +278,58 @@ function startVotingTimer(ioInstance, currentState) {
 
 // --- Socket.IO Logic ---
 function createConnectionHandler(ioInstance, currentState) {
+  function attachSocket(player, socket) {
+    if (player.socketId && currentState.socketToPlayerId[player.socketId] === player.id) {
+      delete currentState.socketToPlayerId[player.socketId];
+    }
+    player.socketId = socket.id;
+    player.connected = true;
+    player.disconnectedAtMs = null;
+    currentState.socketToPlayerId[socket.id] = player.id;
+  }
+
+  function buildStateSync(player) {
+    const currentTurnPlayerId = currentState.turnOrder[currentState.currentPlayerIndex];
+    const currentTurnPlayerName = currentTurnPlayerId && currentState.players[currentTurnPlayerId]
+      ? currentState.players[currentTurnPlayerId].name
+      : null;
+
+    const turnSecondsRemaining = currentState.turnDeadlineMs
+      ? Math.max(0, Math.ceil((currentState.turnDeadlineMs - Date.now()) / 1000))
+      : null;
+    const votingSecondsRemaining = currentState.votingDeadlineMs
+      ? Math.max(0, Math.ceil((currentState.votingDeadlineMs - Date.now()) / 1000))
+      : null;
+
+    return {
+      gameState: currentState.gameState,
+      me: {
+        id: player.id,
+        name: player.name,
+        isHost: player.id === currentState.hostPlayerId,
+        role: player.role,
+        word: player.word,
+        hasVoted: Boolean(player.hasVoted),
+      },
+      lobbyPlayers: Object.values(currentState.players).map((p) => ({
+        id: p.id,
+        name: p.name,
+        isAlive: Boolean(p.isAlive),
+        connected: Boolean(p.connected),
+        isHost: p.id === currentState.hostPlayerId,
+      })),
+      turnOrder: currentState.turnOrder.map((pid) => currentState.players[pid]?.name).filter(Boolean),
+      currentPlayer: currentTurnPlayerName,
+      clues: currentState.clues,
+      votablePlayers: Object.values(currentState.players)
+        .filter((p) => p.isAlive)
+        .map((p) => ({ id: p.id, name: p.name })),
+      turnSecondsRemaining,
+      votingSecondsRemaining,
+      secretWord: currentState.gameState === 'game-over' ? currentState.secretWord : null,
+    };
+  }
+
   function advanceWithClue(clueText) {
     if (currentState.gameState !== 'clue-giving') return;
     const currentId = currentState.turnOrder[currentState.currentPlayerIndex];
@@ -244,7 +347,9 @@ function createConnectionHandler(ioInstance, currentState) {
       stopIntervals(currentState);
       ioInstance.emit('votingStarted', {
         clues: currentState.clues,
-        players: Object.values(currentState.players).filter((p) => p.isAlive),
+        players: Object.values(currentState.players)
+          .filter((p) => p.isAlive)
+          .map((p) => ({ id: p.id, name: p.name })),
       });
       startVotingTimer(ioInstance, currentState);
       return;
@@ -285,7 +390,8 @@ function createConnectionHandler(ioInstance, currentState) {
         id: p.id,
         name: p.name,
         isAlive: Boolean(p.isAlive),
-        isHost: p.id === currentState.hostId,
+        connected: Boolean(p.connected),
+        isHost: p.id === currentState.hostPlayerId,
       })),
     );
 
@@ -296,13 +402,38 @@ function createConnectionHandler(ioInstance, currentState) {
         return;
       }
 
-      if (currentState.gameState !== 'lobby') {
-        ack?.({ ok: false, error: 'game_in_progress' });
-        return socket.emit('gameInProgress');
+      const name = sanitizeText(typeof payload === 'string' ? payload : payload?.name);
+      const pin = sanitizeText(typeof payload === 'object' && payload ? payload.pin : '');
+      const token = sanitizeText(typeof payload === 'object' && payload ? payload.token : '');
+
+      if (!name || name.length > NAME_MAX_LENGTH) {
+        ack?.({ ok: false, error: 'invalid_name' });
+        return socket.emit('joinError', { error: 'invalid_name' });
       }
 
-      if (currentState.players[socket.id]) {
-        ack?.({ ok: true, isHost: socket.id === currentState.hostId });
+      if (pin !== GAME_PIN) {
+        ack?.({ ok: false, error: 'auth_failed' });
+        return socket.emit('authError', { error: 'auth_failed' });
+      }
+
+      const existing = findPlayerByName(currentState, name);
+
+      if (currentState.gameState !== 'lobby') {
+        if (!existing || !token || existing.token !== token) {
+          ack?.({ ok: false, error: 'game_in_progress' });
+          return socket.emit('gameInProgress');
+        }
+      }
+
+      if (existing) {
+        if (!token || existing.token !== token) {
+          ack?.({ ok: false, error: 'name_taken' });
+          return socket.emit('nameTaken');
+        }
+        attachSocket(existing, socket);
+        broadcastLobby(ioInstance, currentState);
+        socket.emit('stateSync', buildStateSync(existing));
+        ack?.({ ok: true, isHost: existing.id === currentState.hostPlayerId, token: existing.token, playerId: existing.id });
         return;
       }
 
@@ -311,43 +442,29 @@ function createConnectionHandler(ioInstance, currentState) {
         return socket.emit('lobbyFull');
       }
 
-      const name = sanitizeText(typeof payload === 'string' ? payload : payload?.name);
-      const pin = sanitizeText(typeof payload === 'object' && payload ? payload.pin : '');
-
-      if (!name || name.length > NAME_MAX_LENGTH) {
-        ack?.({ ok: false, error: 'invalid_name' });
-        return socket.emit('joinError', { error: 'invalid_name' });
-      }
-
-      if (GAME_PIN && pin !== GAME_PIN) {
-        ack?.({ ok: false, error: 'auth_failed' });
-        return socket.emit('authError', { error: 'auth_failed' });
-      }
-
-      if (isNameTaken(currentState, name)) {
-        ack?.({ ok: false, error: 'name_taken' });
-        return socket.emit('nameTaken');
-      }
-
-      currentState.players[socket.id] = { id: socket.id, name, isAlive: true, hasVoted: false };
-      if (!currentState.hostId) currentState.hostId = socket.id;
+      const created = createPlayer(name);
+      currentState.players[created.id] = created;
+      attachSocket(created, socket);
+      if (!currentState.hostPlayerId) currentState.hostPlayerId = created.id;
 
       broadcastLobby(ioInstance, currentState);
-      ack?.({ ok: true, isHost: socket.id === currentState.hostId });
+      socket.emit('stateSync', buildStateSync(created));
+      ack?.({ ok: true, isHost: created.id === currentState.hostPlayerId, token: created.token, playerId: created.id });
     });
 
     socket.on('startGame', () => {
       const limit = rateLimit(socket, 'startGame', { windowMs: 8000, max: 2 });
       if (!limit.ok) return;
-      if (!currentState.players[socket.id]) return;
-      if (currentState.hostId && socket.id !== currentState.hostId) return;
-      if (currentState.gameState !== 'lobby' || Object.keys(currentState.players).length < 2) return;
+      const starter = getPlayerBySocketId(currentState, socket.id);
+      if (!starter) return;
+      if (currentState.hostPlayerId && starter.id !== currentState.hostPlayerId) return;
+      const connectedPlayerIds = Object.values(currentState.players).filter((p) => p.connected).map((p) => p.id);
+      if (currentState.gameState !== 'lobby' || connectedPlayerIds.length < 2) return;
 
       currentState.gameState = 'clue-giving';
       currentState.secretWord = WORDS[Math.floor(Math.random() * WORDS.length)];
-      const playerIds = Object.keys(currentState.players);
-      const imposterId = playerIds[Math.floor(Math.random() * playerIds.length)];
-      currentState.turnOrder = playerIds.sort(() => Math.random() - 0.5);
+      const imposterId = connectedPlayerIds[Math.floor(Math.random() * connectedPlayerIds.length)];
+      currentState.turnOrder = connectedPlayerIds.sort(() => Math.random() - 0.5);
       currentState.currentPlayerIndex = 0;
       currentState.clues = [];
       currentState.votes = {};
@@ -358,7 +475,8 @@ function createConnectionHandler(ioInstance, currentState) {
         currentState.players[id].word = isImposter ? '???' : currentState.secretWord;
         currentState.players[id].clue = null;
         currentState.players[id].hasVoted = false;
-        const playerSocket = ioInstance.sockets?.sockets?.get(id);
+        const playerSocketId = currentState.players[id].socketId;
+        const playerSocket = playerSocketId ? ioInstance.sockets?.sockets?.get(playerSocketId) : null;
         if (playerSocket) {
           playerSocket.emit('roundStarted', {
             role: currentState.players[id].role,
@@ -374,7 +492,9 @@ function createConnectionHandler(ioInstance, currentState) {
     socket.on('submitClue', (clue) => {
       const limit = rateLimit(socket, 'submitClue', { windowMs: 2500, max: 5 });
       if (!limit.ok) return;
-      if (currentState.gameState !== 'clue-giving' || socket.id !== currentState.turnOrder[currentState.currentPlayerIndex]) return;
+      const player = getPlayerBySocketId(currentState, socket.id);
+      if (!player) return;
+      if (currentState.gameState !== 'clue-giving' || player.id !== currentState.turnOrder[currentState.currentPlayerIndex]) return;
       const cleaned = sanitizeText(clue);
       if (!cleaned || cleaned.length > CLUE_MAX_LENGTH) return;
       if (currentState.timers.turnInterval) clearInterval(currentState.timers.turnInterval);
@@ -385,10 +505,11 @@ function createConnectionHandler(ioInstance, currentState) {
     socket.on('castVote', (votedPlayerId) => {
       const limit = rateLimit(socket, 'castVote', { windowMs: 2500, max: 6 });
       if (!limit.ok) return;
-      if (currentState.gameState !== 'voting' || !currentState.players[socket.id] || currentState.players[socket.id].hasVoted) return;
+      const voter = getPlayerBySocketId(currentState, socket.id);
+      if (currentState.gameState !== 'voting' || !voter || voter.hasVoted) return;
       if (!votedPlayerId || !currentState.players[votedPlayerId] || !currentState.players[votedPlayerId].isAlive) return;
 
-      currentState.players[socket.id].hasVoted = true;
+      voter.hasVoted = true;
       currentState.votes[votedPlayerId] = (currentState.votes[votedPlayerId] || 0) + 1;
 
       const livingPlayers = Object.values(currentState.players).filter((p) => p.isAlive);
@@ -400,48 +521,25 @@ function createConnectionHandler(ioInstance, currentState) {
     });
 
     socket.on('disconnect', () => {
-      if (currentState.players[socket.id]) {
-        delete currentState.players[socket.id];
-        if (currentState.hostId === socket.id) {
-          currentState.hostId = Object.keys(currentState.players)[0] || null;
-          ioInstance.emit('hostChanged', { hostId: currentState.hostId });
-        }
-        broadcastLobby(ioInstance, currentState);
-        if (currentState.gameState !== 'lobby' && Object.keys(currentState.players).length < 2) {
+      const player = getPlayerBySocketId(currentState, socket.id);
+      if (!player) return;
+
+      delete currentState.socketToPlayerId[socket.id];
+      player.connected = false;
+      player.socketId = null;
+      player.disconnectedAtMs = Date.now();
+
+      if (currentState.gameState === 'lobby' && currentState.hostPlayerId === player.id) {
+        const nextHost = Object.values(currentState.players).find((p) => p.connected);
+        currentState.hostPlayerId = nextHost?.id || null;
+      }
+
+      broadcastLobby(ioInstance, currentState);
+
+      if (currentState.gameState !== 'lobby') {
+        const connectedCount = Object.values(currentState.players).filter((p) => p.connected).length;
+        if (connectedCount < 2) {
           resetGame(currentState, ioInstance);
-          return;
-        }
-
-        if (currentState.gameState === 'clue-giving') {
-          const previousTurnOrder = currentState.turnOrder;
-          const removedIndex = previousTurnOrder.indexOf(socket.id);
-          currentState.turnOrder = previousTurnOrder.filter((id) => currentState.players[id]);
-          if (removedIndex !== -1 && removedIndex < currentState.currentPlayerIndex) {
-            currentState.currentPlayerIndex = Math.max(0, currentState.currentPlayerIndex - 1);
-          }
-          if (currentState.currentPlayerIndex >= currentState.turnOrder.length) {
-            currentState.gameState = 'voting';
-            stopIntervals(currentState);
-            ioInstance.emit('votingStarted', {
-              clues: currentState.clues,
-              players: Object.values(currentState.players).filter((p) => p.isAlive),
-            });
-            startVotingTimer(ioInstance, currentState);
-            return;
-          }
-          ioInstance.emit('nextTurn', {
-            currentPlayer: currentState.players[currentState.turnOrder[currentState.currentPlayerIndex]].name,
-          });
-          startTurnTimer(ioInstance, currentState);
-          return;
-        }
-
-        if (currentState.gameState === 'voting') {
-          const livingPlayers = Object.values(currentState.players).filter((p) => p.isAlive);
-          const votedPlayers = livingPlayers.filter((p) => p.hasVoted);
-          if (votedPlayers.length === livingPlayers.length) {
-            finalizeVoting(ioInstance, currentState);
-          }
         }
       }
     });

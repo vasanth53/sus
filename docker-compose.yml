@@ -6,6 +6,7 @@ services:
       PORT: "3001"
       HOST: "0.0.0.0"
       CLIENT_ORIGIN: "http://localhost:3000"
+      GAME_PIN: "1234"
     ports:
       - "3001:3001"
 
