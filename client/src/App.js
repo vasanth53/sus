@@ -1,6 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import io from 'socket.io-client';
 import './App.css';
+import {
+  isDiscordActivity,
+  initDiscordActivity,
+  discordAuthorizeAndAuthenticate,
+  exchangeCodeForToken,
+  discordAuthenticate,
+} from './discordActivity';
 
 const DEFAULT_SOCKET_URL =
   typeof window !== 'undefined'
@@ -60,6 +67,44 @@ function App() {
     const savedToken = localStorage.getItem('imposter.token') || '';
     if (savedName) setName(savedName);
     if (savedToken) setPlayerToken(savedToken);
+  }, []);
+
+  useEffect(() => {
+    let canceled = false;
+    const run = async () => {
+      if (!isDiscordActivity()) return;
+      const clientId = process.env.REACT_APP_DISCORD_CLIENT_ID || '';
+      const redirectUri = process.env.REACT_APP_DISCORD_REDIRECT_URI || '';
+      const init = await initDiscordActivity({ clientId });
+      if (!init.ok) return;
+
+      try {
+        const auth = await discordAuthorizeAndAuthenticate(init.discordSdk, {
+          scopes: ['identify'],
+          redirectUri,
+        });
+
+        const proxyBase = '/.proxy';
+        const exchange = await exchangeCodeForToken({ proxyBase, code: auth.code });
+        if (!exchange.ok) return;
+        const who = await discordAuthenticate(init.discordSdk, exchange.token);
+        if (canceled) return;
+
+        const displayName = who?.user?.global_name || who?.user?.username || '';
+        if (displayName) setName(displayName);
+        if (init.channelId) {
+          setJoinMode('join-room');
+          setRoomCode(`d_${init.channelId}`);
+        }
+        setLastToast({ type: 'info', message: 'Discord Activity connected.' });
+      } catch {
+        if (!canceled) setLastToast({ type: 'warning', message: 'Discord Activity auth failed.' });
+      }
+    };
+    run();
+    return () => {
+      canceled = true;
+    };
   }, []);
 
   useEffect(() => {

@@ -38,6 +38,43 @@ const MATCH_MAX_WAIT_MS = Number(process.env.MATCH_MAX_WAIT_MS || 10 * 1000);
 const NAME_MAX_LENGTH = 18;
 const CLUE_MAX_LENGTH = 32;
 
+const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || '';
+const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET || '';
+const DISCORD_REDIRECT_URI = process.env.DISCORD_REDIRECT_URI || '';
+
+app.use(express.json());
+
+app.post('/api/discord/token', async (req, res) => {
+  try {
+    if (!DISCORD_CLIENT_ID || !DISCORD_CLIENT_SECRET || !DISCORD_REDIRECT_URI) {
+      return res.status(500).json({ error: 'discord_oauth_not_configured' });
+    }
+    const code = sanitizeText(req.body?.code || '');
+    if (!code) return res.status(400).json({ error: 'missing_code' });
+
+    const body = new URLSearchParams();
+    body.set('client_id', DISCORD_CLIENT_ID);
+    body.set('client_secret', DISCORD_CLIENT_SECRET);
+    body.set('grant_type', 'authorization_code');
+    body.set('code', code);
+    body.set('redirect_uri', DISCORD_REDIRECT_URI);
+
+    const tokenRes = await fetch('https://discord.com/api/oauth2/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body,
+    });
+
+    const json = await tokenRes.json();
+    if (!tokenRes.ok) {
+      return res.status(400).json({ error: 'discord_token_error', details: json });
+    }
+    return res.json({ access_token: json.access_token, expires_in: json.expires_in });
+  } catch (err) {
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
 function nowMs() {
   return Date.now();
 }

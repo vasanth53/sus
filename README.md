@@ -52,6 +52,19 @@ Backend env vars:
 Frontend env vars (CRA build-time):
 - `REACT_APP_SOCKET_URL` (default: computed from browser host + `:3001`)
 
+### Discord Activity (branch: `discord-activity`)
+
+This project can be run as a Discord Activity (embedded app). You need a Discord application configured for Activities and a hosted HTTPS URL.
+
+Backend env vars (server):
+- `DISCORD_CLIENT_ID`
+- `DISCORD_CLIENT_SECRET`
+- `DISCORD_REDIRECT_URI` (must match your Discord app OAuth redirect)
+
+Frontend env vars (client, build-time):
+- `REACT_APP_DISCORD_CLIENT_ID`
+- `REACT_APP_DISCORD_REDIRECT_URI`
+
 ## Tests
 
 ```bash
