@@ -8,6 +8,15 @@ const DEFAULT_SOCKET_URL =
     : 'http://localhost:3001';
 
 const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || DEFAULT_SOCKET_URL;
+const PUBLIC_URL = process.env.PUBLIC_URL || '';
+const AMONG_US_ASSETS = {
+  stars: `${PUBLIC_URL}/among-us/stars.png`,
+  parallax1: `${PUBLIC_URL}/among-us/parallax1.png`,
+  parallax2: `${PUBLIC_URL}/among-us/parallax2.png`,
+  parallax3: `${PUBLIC_URL}/among-us/parallax3.png`,
+  shhhhh: `${PUBLIC_URL}/among-us/shhhhh.png`,
+  discuss: `${PUBLIC_URL}/among-us/discuss.png`,
+};
 
 function App() {
   // General State
@@ -236,6 +245,16 @@ function App() {
     );
   };
 
+  const PhaseBanner = () => {
+    if (gameState === 'clue-giving') {
+      return <img className="PhaseBanner" src={AMONG_US_ASSETS.shhhhh} alt="" aria-hidden="true" />;
+    }
+    if (gameState === 'voting') {
+      return <img className="PhaseBanner" src={AMONG_US_ASSETS.discuss} alt="" aria-hidden="true" />;
+    }
+    return null;
+  };
+
   // --- Render Logic ---
   const renderContent = () => {
     if (!hasJoined) {
@@ -328,6 +347,8 @@ function App() {
                 </span>
               </div>
 
+              <PhaseBanner />
+
               <div className="WordBox">
                 <div className="WordLabel">Your word</div>
                 <div className="WordValue">{word}</div>
@@ -392,6 +413,7 @@ function App() {
                 <h2 className="CardTitle">Voting</h2>
                 <span className="Pill PillWarn">Choose</span>
               </div>
+              <PhaseBanner />
               <TimerBar label="Voting timer" seconds={votingSecondsRemaining} />
               <p className="CardHint">Review the clues and vote for the imposter.</p>
               <div className="ClueList">
@@ -459,7 +481,15 @@ function App() {
   };
 
   return (
-    <div className="App">
+    <div
+      className="App"
+      style={{
+        '--au-stars': `url(${AMONG_US_ASSETS.stars})`,
+        '--au-parallax1': `url(${AMONG_US_ASSETS.parallax1})`,
+        '--au-parallax2': `url(${AMONG_US_ASSETS.parallax2})`,
+        '--au-parallax3': `url(${AMONG_US_ASSETS.parallax3})`,
+      }}
+    >
       <div className="TopBar">
         <div className="Brand">
           <div className="LogoDot" aria-hidden="true" />

@@ -19,11 +19,41 @@
 
 .App {
   min-height: 100vh;
-  background:
-    radial-gradient(1200px 600px at 20% 0%, rgba(124, 92, 255, 0.22), transparent 60%),
-    radial-gradient(900px 500px at 90% 20%, rgba(56, 189, 248, 0.18), transparent 60%),
-    linear-gradient(180deg, var(--bg0), var(--bg1));
+  position: relative;
+  isolation: isolate;
+  background: linear-gradient(180deg, var(--bg0), var(--bg1));
   color: var(--text);
+}
+
+.App::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--au-stars, none) repeat;
+  opacity: 0.22;
+  transform: translate3d(0, 0, 0);
+  animation: starsDrift 80s linear infinite;
+}
+
+.App::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    var(--au-parallax3, none) bottom center / cover no-repeat,
+    var(--au-parallax2, none) bottom center / cover no-repeat,
+    var(--au-parallax1, none) bottom center / cover no-repeat;
+  opacity: 0.35;
+  filter: saturate(1.05) contrast(1.05);
+}
+
+@keyframes starsDrift {
+  from { background-position: 0 0; }
+  to { background-position: -1200px 600px; }
 }
 
 .TopBar {
@@ -76,6 +106,8 @@
   max-width: 1040px;
   margin: 0 auto;
   padding: 22px 18px 40px;
+  position: relative;
+  z-index: 1;
 }
 
 .Grid {
@@ -429,4 +461,14 @@
 
 .ResultValue {
   font-weight: 600;
+}
+
+.PhaseBanner {
+  width: 100%;
+  height: 42px;
+  object-fit: contain;
+  display: block;
+  margin: 6px 0 10px;
+  filter: drop-shadow(0 12px 22px rgba(0, 0, 0, 0.45));
+  opacity: 0.95;
 }
