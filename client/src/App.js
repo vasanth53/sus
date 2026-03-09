@@ -166,10 +166,15 @@ function App() {
     }, 1200);
 
     const nextName = name.trim();
-    const shouldSendToken =
-      playerToken && (localStorage.getItem('imposter.name') || '').toLowerCase() === nextName.toLowerCase();
+    const storedName = (localStorage.getItem('imposter.name') || '').trim();
+    const storedToken = (localStorage.getItem('imposter.token') || '').trim();
+    const tokenCandidate = (playerToken || storedToken).trim();
+    const shouldSendToken = tokenCandidate && storedName.toLowerCase() === nextName.toLowerCase();
 
-    socket.emit('joinGame', { name: nextName, pin: pin.trim(), token: shouldSendToken ? playerToken : '' }, (res) => {
+    socket.emit(
+      'joinGame',
+      { name: nextName, pin: pin.trim(), token: shouldSendToken ? tokenCandidate : '' },
+      (res) => {
       if (settled) return;
       settled = true;
       clearTimeout(timeoutId);
@@ -186,7 +191,8 @@ function App() {
       } else {
         setLastToast({ type: 'warning', message: `Join failed: ${res?.error || 'unknown'}` });
       }
-    });
+      },
+    );
   };
 
   const handleStartGame = () => socket && socket.emit('startGame');
