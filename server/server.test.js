@@ -107,10 +107,11 @@ describe("Imposter Game Server (unit)", () => {
     expect(roles.filter((r) => r === "imposter")).toHaveLength(1);
     expect(roles.filter((r) => r === "crewmate")).toHaveLength(2);
 
-    const crewWords = words.filter((w) => w !== "???");
-    expect(crewWords).toHaveLength(2);
-    expect(crewWords[0]).toBe(crewWords[1]);
-    expect(words).toContain("???");
+    // Two crewmates share the secret word, imposter gets a different (plausible) word
+    const wordCounts = words.reduce((acc, w) => acc.set(w, (acc.get(w) || 0) + 1), new Map());
+    const counts = Array.from(wordCounts.values()).sort((a, b) => b - a);
+    expect(counts[0]).toBe(2);
+    expect(counts[1]).toBe(1);
 
     // Cleanup: ensure reset doesn't crash with connected players
     resetGame(state, io);

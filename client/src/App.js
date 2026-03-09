@@ -35,7 +35,6 @@ function App() {
   // Game State
   const [gameState, setGameState] = useState('lobby'); // lobby, clue-giving, voting, game-over
   const [word, setWord] = useState('');
-  const [role, setRole] = useState('');
   const [turnOrder, setTurnOrder] = useState([]);
   const [currentPlayer, setCurrentPlayer] = useState('');
   const [clues, setClues] = useState([]);
@@ -45,6 +44,11 @@ function App() {
   const [gameOverResult, setGameOverResult] = useState(null);
   const [turnSecondsRemaining, setTurnSecondsRemaining] = useState(null);
   const [votingSecondsRemaining, setVotingSecondsRemaining] = useState(null);
+  const [turnDeadlineMs, setTurnDeadlineMs] = useState(null);
+  const [votingDeadlineMs, setVotingDeadlineMs] = useState(null);
+  const [turnTotalSeconds, setTurnTotalSeconds] = useState(30);
+  const [votingTotalSeconds, setVotingTotalSeconds] = useState(25);
+  const [clockMs, setClockMs] = useState(Date.now());
   const [lastToast, setLastToast] = useState(null);
 
   useEffect(() => {
@@ -53,6 +57,13 @@ function App() {
     if (savedName) setName(savedName);
     if (savedToken) setPlayerToken(savedToken);
   }, []);
+
+  useEffect(() => {
+    const hasActiveTimer = Boolean(turnDeadlineMs || votingDeadlineMs);
+    if (!hasActiveTimer) return;
+    const id = setInterval(() => setClockMs(Date.now()), 80);
+    return () => clearInterval(id);
+  }, [turnDeadlineMs, votingDeadlineMs]);
 
   useEffect(() => {
     const newSocket = io(SOCKET_URL);
@@ -74,7 +85,6 @@ function App() {
     newSocket.on('gameReset', () => {
       setGameState('lobby');
       setWord('');
-      setRole('');
       setTurnOrder([]);
       setCurrentPlayer('');
       setClues([]);
@@ -84,6 +94,8 @@ function App() {
       setGameOverResult(null);
       setTurnSecondsRemaining(null);
       setVotingSecondsRemaining(null);
+      setTurnDeadlineMs(null);
+      setVotingDeadlineMs(null);
       setLastToast({ type: 'info', message: 'Back to lobby. Ready for another round.' });
     });
 
@@ -91,13 +103,13 @@ function App() {
     newSocket.on('roundStarted', (data) => {
       setGameState('clue-giving');
       setWord(data.word);
-      setRole(data.role);
       setTurnOrder(data.turnOrder);
       setCurrentPlayer(data.currentPlayer);
       setClues([]);
       setHasVoted(false);
       setGameOverResult(null);
       setVotingSecondsRemaining(null);
+      setVotingDeadlineMs(null);
       setLastToast({ type: 'success', message: 'Round started. Give a clue on your turn.' });
     });
 
@@ -115,6 +127,7 @@ function App() {
       setClues(data.clues);
       setVotablePlayers(data.players);
       setTurnSecondsRemaining(null);
+      setTurnDeadlineMs(null);
       setHasVoted(false);
       setLastToast({ type: 'warning', message: 'Voting started. Choose wisely.' });
     });
@@ -122,10 +135,14 @@ function App() {
     newSocket.on('turnTimer', (data) => {
       setTurnSecondsRemaining(data.secondsRemaining);
       if (data.currentPlayer) setCurrentPlayer(data.currentPlayer);
+      if (data.deadlineMs) setTurnDeadlineMs(data.deadlineMs);
+      if (data.totalSeconds) setTurnTotalSeconds(data.totalSeconds);
     });
 
     newSocket.on('votingTimer', (data) => {
       setVotingSecondsRemaining(data.secondsRemaining);
+      if (data.deadlineMs) setVotingDeadlineMs(data.deadlineMs);
+      if (data.totalSeconds) setVotingTotalSeconds(data.totalSeconds);
     });
 
     newSocket.on('stateSync', (data) => {
@@ -139,11 +156,14 @@ function App() {
       setVotablePlayers(data.votablePlayers || []);
       setTurnSecondsRemaining(data.turnSecondsRemaining ?? null);
       setVotingSecondsRemaining(data.votingSecondsRemaining ?? null);
+      setTurnDeadlineMs(data.turnDeadlineMs ?? null);
+      setVotingDeadlineMs(data.votingDeadlineMs ?? null);
+      setTurnTotalSeconds(data.turnTotalSeconds ?? 30);
+      setVotingTotalSeconds(data.votingTotalSeconds ?? 25);
 
       if (data.me) {
         setMyPlayerId(data.me.id || null);
         setName(data.me.name || '');
-        setRole(data.me.role || '');
         setWord(data.me.word || '');
         setHasVoted(Boolean(data.me.hasVoted));
       }
@@ -154,6 +174,8 @@ function App() {
       setGameOverResult(result);
       setTurnSecondsRemaining(null);
       setVotingSecondsRemaining(null);
+      setTurnDeadlineMs(null);
+      setVotingDeadlineMs(null);
       setLastToast({ type: 'info', message: 'Game over. Returning to lobby soon…' });
     });
 
@@ -226,12 +248,13 @@ function App() {
   const isHost =
     hasJoined &&
     (lobbyPlayers.find((p) => p.id === myPlayerId)?.isHost || lobbyPlayers.find((p) => p.name === name)?.isHost);
-  const roleLabel = role === 'imposter' ? 'Imposter' : role === 'crewmate' ? 'Crewmate' : '';
-  const roleTone = role === 'imposter' ? 'danger' : role === 'crewmate' ? 'success' : 'neutral';
 
-  const TimerBar = ({ label, seconds }) => {
+  const TimerBar = ({ label, seconds, deadlineMs, totalSeconds }) => {
     if (seconds === null || seconds === undefined) return null;
     const clamped = Math.max(0, Math.min(99, Number(seconds)));
+    const total = Math.max(1, Number(totalSeconds || 30));
+    const remainingMs = deadlineMs ? Math.max(0, deadlineMs - clockMs) : clamped * 1000;
+    const fill = Math.max(0, Math.min(1, remainingMs / (total * 1000)));
     return (
       <div className="Timer">
         <div className="TimerRow">
@@ -239,7 +262,7 @@ function App() {
           <span className="TimerValue">{clamped}s</span>
         </div>
         <div className="TimerTrack" aria-hidden="true">
-          <div className="TimerFill" style={{ width: `${(clamped / 30) * 100}%` }} />
+          <div className="TimerFill" style={{ '--fill': fill }} />
         </div>
       </div>
     );
@@ -324,15 +347,6 @@ function App() {
                 </button>
               </div>
             </div>
-
-            <div className="Card Subtle">
-              <h3 className="CardTitle Small">How to play</h3>
-              <ul className="List">
-                <li>Crewmates see the secret word.</li>
-                <li>The imposter sees <span className="Code">???</span>.</li>
-                <li>Give 1 clue each, then vote.</li>
-              </ul>
-            </div>
           </div>
         );
 
@@ -342,9 +356,7 @@ function App() {
             <div className="Card">
               <div className="Row Between">
                 <h2 className="CardTitle">{isMyTurn ? "Your turn" : "Clue phase"}</h2>
-                <span className={`Pill Pill${roleTone === 'danger' ? 'Danger' : roleTone === 'success' ? 'Ok' : 'Neutral'}`}>
-                  {roleLabel || '—'}
-                </span>
+                <span className={`Pill ${isMyTurn ? 'PillOk' : 'PillNeutral'}`}>{isMyTurn ? 'INPUT' : 'WAIT'}</span>
               </div>
 
               <PhaseBanner />
@@ -354,7 +366,12 @@ function App() {
                 <div className="WordValue">{word}</div>
               </div>
 
-              <TimerBar label="Turn timer" seconds={turnSecondsRemaining} />
+              <TimerBar
+                label="Turn timer"
+                seconds={turnSecondsRemaining}
+                deadlineMs={turnDeadlineMs}
+                totalSeconds={turnTotalSeconds}
+              />
 
               <p className="CardHint">
                 {isMyTurn ? "Give a clue that fits the word (but don’t be obvious)." : `Waiting for ${currentPlayer}…`}
@@ -414,7 +431,12 @@ function App() {
                 <span className="Pill PillWarn">Choose</span>
               </div>
               <PhaseBanner />
-              <TimerBar label="Voting timer" seconds={votingSecondsRemaining} />
+              <TimerBar
+                label="Voting timer"
+                seconds={votingSecondsRemaining}
+                deadlineMs={votingDeadlineMs}
+                totalSeconds={votingTotalSeconds}
+              />
               <p className="CardHint">Review the clues and vote for the imposter.</p>
               <div className="ClueList">
                 {clues.map((c, i) => (
@@ -523,9 +545,9 @@ function App() {
               <span className={`Light ${gameState === 'voting' ? 'Warn' : 'Neutral'}`} />
               <span className={`Light ${gameState === 'game-over' ? 'Danger' : 'Neutral'}`} />
             </div>
-            <div className="ConsoleText">
-              {gameState.toUpperCase()} • {isHost ? 'HOST' : 'CREW'} • {name}
-            </div>
+          <div className="ConsoleText">
+              {gameState.toUpperCase()} • {isHost ? 'HOST' : 'PLAYER'} • {name}
+          </div>
             <div className="ConsoleButtons">
               <span className="ConsoleBtn" />
               <span className="ConsoleBtn" />

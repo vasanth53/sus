@@ -186,7 +186,7 @@ function emitTurnTimer(ioInstance, currentState) {
   const currentId = currentState.turnOrder[currentState.currentPlayerIndex];
   const currentName = currentId && currentState.players[currentId] ? currentState.players[currentId].name : null;
   const secondsRemaining = deadline ? Math.max(0, Math.ceil((deadline - Date.now()) / 1000)) : null;
-  ioInstance.emit('turnTimer', { secondsRemaining, currentPlayer: currentName });
+  ioInstance.emit('turnTimer', { secondsRemaining, currentPlayer: currentName, deadlineMs: deadline, totalSeconds: TURN_SECONDS });
 }
 
 function emitVotingTimer(ioInstance, currentState) {
@@ -194,7 +194,7 @@ function emitVotingTimer(ioInstance, currentState) {
   if (currentState.gameState !== 'voting') return;
   const deadline = currentState.votingDeadlineMs;
   const secondsRemaining = deadline ? Math.max(0, Math.ceil((deadline - Date.now()) / 1000)) : null;
-  ioInstance.emit('votingTimer', { secondsRemaining });
+  ioInstance.emit('votingTimer', { secondsRemaining, deadlineMs: deadline, totalSeconds: VOTING_SECONDS });
 }
 
 function finalizeVoting(ioInstance, currentState) {
@@ -326,6 +326,10 @@ function createConnectionHandler(ioInstance, currentState) {
         .map((p) => ({ id: p.id, name: p.name })),
       turnSecondsRemaining,
       votingSecondsRemaining,
+      turnDeadlineMs: currentState.turnDeadlineMs,
+      votingDeadlineMs: currentState.votingDeadlineMs,
+      turnTotalSeconds: TURN_SECONDS,
+      votingTotalSeconds: VOTING_SECONDS,
       secretWord: currentState.gameState === 'game-over' ? currentState.secretWord : null,
     };
   }
@@ -472,7 +476,14 @@ function createConnectionHandler(ioInstance, currentState) {
       currentState.turnOrder.forEach((id) => {
         const isImposter = id === imposterId;
         currentState.players[id].role = isImposter ? 'imposter' : 'crewmate';
-        currentState.players[id].word = isImposter ? '???' : currentState.secretWord;
+        if (isImposter) {
+          const alternatives = WORDS.filter((w) => w !== currentState.secretWord);
+          currentState.players[id].word = alternatives.length
+            ? alternatives[Math.floor(Math.random() * alternatives.length)]
+            : '???';
+        } else {
+          currentState.players[id].word = currentState.secretWord;
+        }
         currentState.players[id].clue = null;
         currentState.players[id].hasVoted = false;
         const playerSocketId = currentState.players[id].socketId;

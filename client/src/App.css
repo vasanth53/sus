@@ -566,8 +566,10 @@
 .TimerFill {
   height: 100%;
   background: linear-gradient(90deg, rgba(124, 92, 255, 0.9), rgba(56, 189, 248, 0.9));
-  width: 0%;
-  transition: width 220ms ease;
+  width: 100%;
+  transform-origin: left center;
+  transform: scaleX(var(--fill, 0));
+  transition: transform 80ms linear;
 }
 
 .VoteGrid {
