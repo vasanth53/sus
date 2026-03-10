@@ -11,10 +11,22 @@ app.use((req, res, next) => {
   next();
 });
 
+app.get('/', (req, res) => res.status(200).send('ok'));
+app.get('/health', (req, res) => res.status(200).json({ ok: true }));
+
 const server = http.createServer(app);
+
+function parseCorsOrigin(value) {
+  const raw = typeof value === 'string' ? value.trim() : '';
+  if (!raw) return 'http://localhost:3000';
+  if (raw === '*') return true;
+  if (raw.includes(',')) return raw.split(',').map((s) => s.trim()).filter(Boolean);
+  return raw;
+}
+
 const io = new Server(server, {
   cors: {
-    origin: process.env.CLIENT_ORIGIN || 'http://localhost:3000',
+    origin: parseCorsOrigin(process.env.CLIENT_ORIGIN),
     methods: ['GET', 'POST'],
   },
 });

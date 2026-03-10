@@ -8,5 +8,13 @@ yarn-error.log*
 
 .env
 .env.*
+!.env.example
+!**/.env.example
 
 .DS_Store
+
+# Local Netlify folder
+.netlify
+
+# Local tools
+bin/

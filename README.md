@@ -58,3 +58,37 @@ Frontend env vars (CRA build-time):
 cd server && npm test
 cd client && CI=true npm test
 ```
+
+## Deploy
+
+### Frontend on Netlify
+
+This repo includes a `netlify.toml` that builds/publishes the React app from `client/`.
+
+In Netlify site settings, set this build-time env var:
+- `REACT_APP_SOCKET_URL` = your backend URL (example: `https://imposter-game-backend.onrender.com`)
+
+Tip: see `client/.env.example`.
+
+### Backend (Socket.IO) hosting
+
+Netlify Functions/Edge Functions are request-based and don’t run a long-lived Socket.IO server, so the backend needs a WebSocket-capable host (Render/Fly/Railway/etc).
+
+Backend required env vars:
+- `GAME_PIN` (required)
+- `CLIENT_ORIGIN` (set to your Netlify site URL; you can use a comma-separated list, or `*` to allow any origin)
+
+Tip: see `server/.env.example`.
+
+#### Render quickstart
+
+Option A (recommended): use the included `render.yaml` blueprint.
+
+Option B (manual):
+- Create a new **Web Service** in Render from this repo
+- Root directory: `server`
+- Build command: `npm ci`
+- Start command: `npm start`
+- Env vars: `GAME_PIN`, `CLIENT_ORIGIN`
+
+After Render deploys, copy the service URL and set Netlify `REACT_APP_SOCKET_URL` to that URL, then redeploy the Netlify site.

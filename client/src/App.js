@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import io from 'socket.io-client';
 import './App.css';
 
-const DEFAULT_SOCKET_URL =
-  typeof window !== 'undefined'
-    ? `${window.location.protocol}//${window.location.hostname}:3001`
-    : 'http://localhost:3001';
+function getDefaultSocketUrl() {
+  if (typeof window === 'undefined') return 'http://localhost:3001';
+  const { protocol, hostname, host } = window.location;
+  const isLocal = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0';
+  return isLocal ? `${protocol}//${hostname}:3001` : `${protocol}//${host}`;
+}
 
-const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || DEFAULT_SOCKET_URL;
+const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || getDefaultSocketUrl();
 const PUBLIC_URL = process.env.PUBLIC_URL || '';
 const AMONG_US_ASSETS = {
   stars: `${PUBLIC_URL}/among-us/stars.png`,
