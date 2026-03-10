@@ -8,10 +8,7 @@ services:
     buildCommand: npm ci
     startCommand: npm start
     envVars:
-      - key: GAME_PIN
-        sync: false
       - key: CLIENT_ORIGIN
         sync: false
       - key: NODE_VERSION
         value: "20"
-

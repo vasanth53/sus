@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import io from 'socket.io-client';
+import * as Colyseus from 'colyseus.js';
 import './App.css';
 
 function getDefaultSocketUrl() {
@@ -9,7 +9,10 @@ function getDefaultSocketUrl() {
   return isLocal ? `${protocol}//${hostname}:3001` : `${protocol}//${host}`;
 }
 
-const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || getDefaultSocketUrl();
+// Reuse existing env var name for deployment convenience.
+// It should point to the backend HTTP origin (e.g. https://xxxx.onrender.com).
+const SERVER_URL = process.env.REACT_APP_SOCKET_URL || getDefaultSocketUrl();
+const COLYSEUS_URL = SERVER_URL.replace(/^http/i, 'ws');
 const PUBLIC_URL = process.env.PUBLIC_URL || '';
 const AMONG_US_ASSETS = {
   stars: `${PUBLIC_URL}/among-us/stars.png`,
@@ -20,15 +23,23 @@ const AMONG_US_ASSETS = {
   discuss: `${PUBLIC_URL}/among-us/discuss.png`,
 };
 
+function generateRoomCode() {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let out = '';
+  for (let i = 0; i < 6; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)];
+  return out;
+}
+
 function App() {
   // General State
-  const [socket, setSocket] = useState(null);
+  const [colyseusClient, setColyseusClient] = useState(null);
+  const [room, setRoom] = useState(null);
   const [myPlayerId, setMyPlayerId] = useState(null);
   const [name, setName] = useState('');
   const [playerToken, setPlayerToken] = useState('');
   const [hasJoined, setHasJoined] = useState(false);
   const [joinPending, setJoinPending] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState('connecting'); // connecting, connected, disconnected, error
+  const [connectionStatus, setConnectionStatus] = useState('idle'); // idle, connected, disconnected, error
   const [roomCode, setRoomCode] = useState('');
   const [currentRoomId, setCurrentRoomId] = useState('public');
   
@@ -45,8 +56,6 @@ function App() {
   const [votablePlayers, setVotablePlayers] = useState([]);
   const [hasVoted, setHasVoted] = useState(false);
   const [gameOverResult, setGameOverResult] = useState(null);
-  const [turnSecondsRemaining, setTurnSecondsRemaining] = useState(null);
-  const [votingSecondsRemaining, setVotingSecondsRemaining] = useState(null);
   const [turnDeadlineMs, setTurnDeadlineMs] = useState(null);
   const [votingDeadlineMs, setVotingDeadlineMs] = useState(null);
   const [turnTotalSeconds, setTurnTotalSeconds] = useState(30);
@@ -55,6 +64,7 @@ function App() {
   const [lastToast, setLastToast] = useState(null);
 
   const identityRef = useRef({ hasJoined: false, playerId: null, token: '', roomId: 'public' });
+  const roomRef = useRef(null);
   useEffect(() => {
     identityRef.current = {
       hasJoined: Boolean(hasJoined),
@@ -63,6 +73,10 @@ function App() {
       roomId: currentRoomId,
     };
   }, [hasJoined, myPlayerId, playerToken, currentRoomId]);
+
+  useEffect(() => {
+    roomRef.current = room;
+  }, [room]);
 
   useEffect(() => {
     const savedName = localStorage.getItem('imposter.name') || '';
@@ -79,151 +93,16 @@ function App() {
   }, [turnDeadlineMs, votingDeadlineMs]);
 
   useEffect(() => {
-    const newSocket = io(SOCKET_URL);
-    setSocket(newSocket);
-
-    // --- General Listeners ---
-    newSocket.on('connect', () => {
-      setConnectionStatus('connected');
-    });
-    newSocket.on('disconnect', () => setConnectionStatus('disconnected'));
-    newSocket.on('connect_error', () => setConnectionStatus('error'));
-
-    newSocket.on('updatePlayerListV2', (payload) => {
-      const roomId = payload?.roomId;
-      const players = payload?.players;
-      if (!roomId || !Array.isArray(players)) return;
-      if (identityRef.current.roomId && roomId !== identityRef.current.roomId) return;
-      setLobbyPlayers(players);
-    });
-    // Legacy server payload (no roomId). Keep this for older servers, but it
-    // can cause stale updates if a socket is accidentally in multiple rooms.
-    newSocket.on('updatePlayerList', (players) => {
-      if (!Array.isArray(players)) return;
-      setLobbyPlayers(players);
-    });
-    newSocket.on('gameInProgress', () => alert("A game is already in progress. Please wait."));
-    newSocket.on('authError', () => setLastToast({ type: 'warning', message: 'Wrong PIN. Try again.' }));
-    newSocket.on('nameTaken', () => setLastToast({ type: 'warning', message: 'That name is already taken.' }));
-    newSocket.on('lobbyFull', () => setLastToast({ type: 'warning', message: 'Lobby is full.' }));
-    newSocket.on('joinError', (data) => setLastToast({ type: 'warning', message: `Join failed: ${data?.error || 'unknown'}` }));
-    newSocket.on('gameReset', () => {
-      setGameState('lobby');
-      setWord('');
-      setTurnOrder([]);
-      setCurrentPlayer('');
-      setClues([]);
-      setMyClue('');
-      setVotablePlayers([]);
-      setHasVoted(false);
-      setGameOverResult(null);
-      setTurnSecondsRemaining(null);
-      setVotingSecondsRemaining(null);
-      setTurnDeadlineMs(null);
-      setVotingDeadlineMs(null);
-      setLastToast({ type: 'info', message: 'Back to lobby. Ready for another round.' });
-    });
-
-    // --- Game Flow Listeners ---
-    newSocket.on('roundStarted', (data) => {
-      setGameState('clue-giving');
-      setWord(data.word);
-      setTurnOrder(data.turnOrder);
-      setCurrentPlayer(data.currentPlayer);
-      setClues([]);
-      setHasVoted(false);
-      setGameOverResult(null);
-      setVotingSecondsRemaining(null);
-      setVotingDeadlineMs(null);
-      setLastToast({ type: 'success', message: 'Round started. Give a clue on your turn.' });
-    });
-
-    newSocket.on('newClue', (clue) => {
-      setClues(prevClues => [...prevClues, clue]);
-    });
-
-    newSocket.on('nextTurn', (data) => {
-      setCurrentPlayer(data.currentPlayer);
-      setLastToast({ type: 'info', message: `Next turn: ${data.currentPlayer}` });
-    });
-
-    newSocket.on('votingStarted', (data) => {
-      setGameState('voting');
-      setClues(data.clues);
-      setVotablePlayers(data.players);
-      setTurnSecondsRemaining(null);
-      setTurnDeadlineMs(null);
-      setHasVoted(false);
-      setLastToast({ type: 'warning', message: 'Voting started. Choose wisely.' });
-    });
-
-    newSocket.on('turnTimer', (data) => {
-      setTurnSecondsRemaining(data.secondsRemaining);
-      if (data.currentPlayer) setCurrentPlayer(data.currentPlayer);
-      if (data.deadlineMs) setTurnDeadlineMs(data.deadlineMs);
-      if (data.totalSeconds) setTurnTotalSeconds(data.totalSeconds);
-    });
-
-    newSocket.on('votingTimer', (data) => {
-      setVotingSecondsRemaining(data.secondsRemaining);
-      if (data.deadlineMs) setVotingDeadlineMs(data.deadlineMs);
-      if (data.totalSeconds) setVotingTotalSeconds(data.totalSeconds);
-    });
-
-    newSocket.on('stateSync', (data) => {
-      if (!data) return;
-      const expectedPlayerId = identityRef.current.playerId;
-      const expectedToken = identityRef.current.token;
-      const incomingPlayerId = data?.me?.id || null;
-      const incomingToken = (data?.me?.token || '').trim();
-
-      // Safety: ignore stray stateSync events (e.g. if the socket is still
-      // subscribed to an old room and receives a different player's "me").
-      // Once we have an identity, only accept stateSync for that identity.
-      if (identityRef.current.hasJoined) {
-        if (expectedPlayerId && incomingPlayerId && incomingPlayerId !== expectedPlayerId) return;
-        if (expectedToken && incomingToken && incomingToken !== expectedToken) return;
+    const c = new Colyseus.Client(COLYSEUS_URL);
+    setColyseusClient(c);
+    setConnectionStatus('connected');
+    return () => {
+      try {
+        roomRef.current?.leave?.();
+      } catch {
+        // ignore
       }
-
-      setHasJoined(true);
-      if (data.roomId) setCurrentRoomId(data.roomId);
-      setGameState(data.gameState || 'lobby');
-      setLobbyPlayers(data.lobbyPlayers || []);
-      setTurnOrder(data.turnOrder || []);
-      setCurrentPlayer(data.currentPlayer || '');
-      setClues(data.clues || []);
-      setVotablePlayers(data.votablePlayers || []);
-      setTurnSecondsRemaining(data.turnSecondsRemaining ?? null);
-      setVotingSecondsRemaining(data.votingSecondsRemaining ?? null);
-      setTurnDeadlineMs(data.turnDeadlineMs ?? null);
-      setVotingDeadlineMs(data.votingDeadlineMs ?? null);
-      setTurnTotalSeconds(data.turnTotalSeconds ?? 30);
-      setVotingTotalSeconds(data.votingTotalSeconds ?? 25);
-
-      if (data.me) {
-        setMyPlayerId(data.me.id || null);
-        setName(data.me.name || '');
-        setWord(data.me.word || '');
-        setHasVoted(Boolean(data.me.hasVoted));
-        if (data.me.token) {
-          setPlayerToken(data.me.token);
-          localStorage.setItem('imposter.token', data.me.token);
-          localStorage.setItem('imposter.name', data.me.name || '');
-        }
-      }
-    });
-
-    newSocket.on('gameOver', (result) => {
-      setGameState('game-over');
-      setGameOverResult(result);
-      setTurnSecondsRemaining(null);
-      setVotingSecondsRemaining(null);
-      setTurnDeadlineMs(null);
-      setVotingDeadlineMs(null);
-      setLastToast({ type: 'info', message: 'Game over. Returning to lobby soon…' });
-    });
-
-    return () => newSocket.close();
+    };
   }, []);
 
   // --- Handlers ---
@@ -247,66 +126,125 @@ function App() {
     }
   };
 
-  const joinRoom = (code, { toastPrefix = 'Joined room' } = {}) => {
+  const joinRoom = async (code, { toastPrefix = 'Joined room', createIfMissing = false } = {}) => {
     const normalized = String(code || '').trim().toUpperCase();
-    if (!socket || !name.trim() || !normalized || joinPending) return;
+    if (!colyseusClient || !name.trim() || !normalized || joinPending) return;
     setJoinPending(true);
-    socket.emit('joinRoom', { ...joinPayloadBase(), roomId: normalized }, (res) => {
-      setJoinPending(false);
-      if (res?.ok) {
-        setHasJoined(true);
-        if (res?.playerId) setMyPlayerId(res.playerId);
-        if (res?.token) {
-          setPlayerToken(res.token);
-          localStorage.setItem('imposter.token', res.token);
-        }
-        localStorage.setItem('imposter.name', name.trim());
-        setCurrentRoomId(res.roomId || normalized);
-        setLastToast({ type: 'success', message: `${toastPrefix} ${res.roomId || normalized}` });
-      } else {
-        setLastToast({ type: 'warning', message: `Join failed: ${res?.error || 'unknown'}` });
+    try {
+      const nextRoom = createIfMissing
+        ? await colyseusClient.joinOrCreate('imposter', { ...joinPayloadBase(), roomCode: normalized })
+        : await colyseusClient.join('imposter', { ...joinPayloadBase(), roomCode: normalized });
+
+      if (room) {
+        try { room.leave(); } catch {}
       }
-    });
+
+      setRoom(nextRoom);
+      setHasJoined(true);
+      setCurrentRoomId(normalized);
+      localStorage.setItem('imposter.name', name.trim());
+      setLastToast({ type: 'success', message: `${toastPrefix} ${normalized}` });
+
+      nextRoom.onMessage('me', (payload) => {
+        const pid = payload?.playerId || null;
+        const token = payload?.token || '';
+        if (pid) setMyPlayerId(pid);
+        if (token) {
+          setPlayerToken(token);
+          localStorage.setItem('imposter.token', token);
+        }
+      });
+
+      nextRoom.onMessage('word', (payload) => {
+        if (payload?.word) setWord(payload.word);
+      });
+
+      nextRoom.onStateChange((state) => {
+        if (!state) return;
+        setGameState(state.gameState || 'lobby');
+        setTurnOrder(Array.from(state.turnOrder || []));
+        setCurrentPlayer(state.currentPlayer || '');
+        setClues(Array.from(state.clues || []).map((c) => ({ sender: c.sender, clue: c.clue })));
+        setTurnDeadlineMs(state.turnDeadlineMs ? Number(state.turnDeadlineMs) : null);
+        setVotingDeadlineMs(state.votingDeadlineMs ? Number(state.votingDeadlineMs) : null);
+        setTurnTotalSeconds(Number(state.turnTotalSeconds || 30));
+        setVotingTotalSeconds(Number(state.votingTotalSeconds || 25));
+
+        const players = [];
+        try {
+          state.players?.forEach?.((p, id) => {
+            players.push({
+              id,
+              name: p.name,
+              isAlive: Boolean(p.isAlive),
+              connected: Boolean(p.connected),
+              isHost: Boolean(p.isHost),
+            });
+          });
+        } catch {
+          // ignore
+        }
+        setLobbyPlayers(players);
+        setVotablePlayers(players.filter((p) => p.isAlive).map((p) => ({ id: p.id, name: p.name })));
+
+        const me = identityRef.current.playerId ? players.find((p) => p.id === identityRef.current.playerId) : null;
+        if (me) setHasVoted(Boolean(state.players?.get?.(me.id)?.hasVoted));
+
+        if (state.gameOver) {
+          setGameOverResult({
+            winner: state.gameOver.winner,
+            ejected: state.gameOver.ejected,
+            imposter: state.gameOver.imposter,
+            secretWord: state.gameOver.secretWord,
+          });
+        } else {
+          setGameOverResult(null);
+        }
+
+        if (state.gameState === 'lobby') {
+          setWord('');
+          setClues([]);
+          setMyClue('');
+          setHasVoted(false);
+          setTurnDeadlineMs(null);
+          setVotingDeadlineMs(null);
+        }
+      });
+    } catch (err) {
+      setLastToast({ type: 'warning', message: `Join failed: ${err?.message || 'unknown'}` });
+    } finally {
+      setJoinPending(false);
+    }
   };
 
   const createRoomAndJoin = () => {
-    if (!socket || !name.trim() || joinPending) return;
-    setJoinPending(true);
-    socket.emit('createRoom', {}, (res) => {
-      if (!res?.ok || !res?.roomId) {
-        setJoinPending(false);
-        setLastToast({ type: 'warning', message: `Create room failed: ${res?.error || 'unknown'}` });
-        return;
-      }
-      const code = String(res.roomId).toUpperCase();
-      setRoomCode(code);
-      setCurrentRoomId(code);
-      setJoinPending(false);
-      joinRoom(code, { toastPrefix: 'Created room' });
-      copyRoomCode(code);
-    });
+    if (!name.trim() || joinPending) return;
+    const code = generateRoomCode();
+    setRoomCode(code);
+    joinRoom(code, { toastPrefix: 'Created room', createIfMissing: true });
+    copyRoomCode(code);
   };
 
   const handleJoinGame = (e) => {
     e.preventDefault();
     const code = roomCode.trim();
     if (!code) return setLastToast({ type: 'warning', message: 'Enter a room code.' });
-    return joinRoom(code);
+    return joinRoom(code, { toastPrefix: 'Joined room' });
   };
 
-  const handleStartGame = () => socket && socket.emit('startGame');
+  const handleStartGame = () => room && room.send('startGame');
 
   const handleSubmitClue = (e) => {
     e.preventDefault();
-    if (myClue.trim() && socket) {
-      socket.emit('submitClue', myClue);
+    if (myClue.trim() && room) {
+      room.send('submitClue', { clue: myClue });
       setMyClue('');
     }
   };
 
   const handleVote = (playerId) => {
-    if (socket && !hasVoted) {
-      socket.emit('castVote', playerId);
+    if (room && !hasVoted) {
+      room.send('castVote', { playerId });
       setHasVoted(true);
       setLastToast({ type: 'success', message: 'Vote submitted.' });
     }
@@ -369,7 +307,7 @@ function App() {
               disabled={
                 !name.trim() ||
                 !roomCode.trim() ||
-                !socket ||
+                !colyseusClient ||
                 joinPending ||
                 connectionStatus !== 'connected'
               }
@@ -395,7 +333,7 @@ function App() {
               type="button"
               className="Button"
               onClick={createRoomAndJoin}
-              disabled={!name.trim() || !socket || joinPending || connectionStatus !== 'connected'}
+              disabled={!name.trim() || !colyseusClient || joinPending || connectionStatus !== 'connected'}
               title="Create a new room and copy the code"
             >
               Create room
@@ -405,7 +343,7 @@ function App() {
             <span className={`Pill ${connectionStatus === 'connected' ? 'PillOk' : 'PillWarn'}`}>
               {connectionStatus === 'connected' ? 'Connected' : connectionStatus === 'connecting' ? 'Connecting…' : 'Offline'}
             </span>
-            <span className="MetaText">Server: {SOCKET_URL}</span>
+            <span className="MetaText">Server: {SERVER_URL}</span>
           </div>
         </div>
       );
@@ -430,7 +368,7 @@ function App() {
                 ))}
               </div>
               <div className="Actions">
-                <button className="Button Primary" onClick={handleStartGame} disabled={lobbyPlayers.length < 2 || !socket || !isHost}>
+                <button className="Button Primary" onClick={handleStartGame} disabled={lobbyPlayers.length < 2 || !room || !isHost}>
                   Start round
                 </button>
               </div>
@@ -456,7 +394,7 @@ function App() {
 
               <TimerBar
                 label="Turn timer"
-                seconds={turnSecondsRemaining}
+                seconds={turnDeadlineMs ? Math.max(0, Math.ceil((turnDeadlineMs - clockMs) / 1000)) : null}
                 deadlineMs={turnDeadlineMs}
                 totalSeconds={turnTotalSeconds}
               />
@@ -521,7 +459,7 @@ function App() {
               <PhaseBanner />
               <TimerBar
                 label="Voting timer"
-                seconds={votingSecondsRemaining}
+                seconds={votingDeadlineMs ? Math.max(0, Math.ceil((votingDeadlineMs - clockMs) / 1000)) : null}
                 deadlineMs={votingDeadlineMs}
                 totalSeconds={votingTotalSeconds}
               />

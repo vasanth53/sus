@@ -1,7 +1,7 @@
 # Imposter Word Game
 
 Small multiplayer “imposter word” game:
-- `server/`: Express + Socket.IO game server
+- `server/`: Express + Colyseus game server
 - `client/`: React (Create React App) UI
 
 ## Run with Docker (recommended)
@@ -45,8 +45,7 @@ Open `http://localhost:3000`.
 Backend env vars:
 - `PORT` (default `3001`)
 - `HOST` (default `0.0.0.0`)
-- `CLIENT_ORIGIN` (default `http://localhost:3000`) — Socket.IO CORS origin
-- `GAME_PIN` (optional) — if set, players must enter this PIN to join/create rooms
+- `CLIENT_ORIGIN` (default `http://localhost:3000`) — allowed browser Origin(s) (comma-separated) or `*`
 - `MAX_PLAYERS` (default `10`)
 
 Frontend env vars (CRA build-time):
@@ -72,7 +71,7 @@ Tip: see `client/.env.example`.
 
 ### Backend (Socket.IO) hosting
 
-Netlify Functions/Edge Functions are request-based and don’t run a long-lived Socket.IO server, so the backend needs a WebSocket-capable host (Render/Fly/Railway/etc).
+Netlify Functions/Edge Functions are request-based and don’t run a long-lived Colyseus server, so the backend needs a WebSocket-capable host (Render/Fly/Railway/etc).
 
 Backend required env vars:
 - `CLIENT_ORIGIN` (set to your Netlify site URL; you can use a comma-separated list, or `*` to allow any origin)
@@ -88,6 +87,6 @@ Option B (manual):
 - Root directory: `server`
 - Build command: `npm ci`
 - Start command: `npm start`
-- Env vars: `GAME_PIN`, `CLIENT_ORIGIN`
+- Env vars: `CLIENT_ORIGIN`
 
 After Render deploys, copy the service URL and set Netlify `REACT_APP_SOCKET_URL` to that URL, then redeploy the Netlify site.
