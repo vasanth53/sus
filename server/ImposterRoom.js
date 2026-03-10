@@ -57,7 +57,7 @@ class ImposterRoom extends Room {
     // find existing by name
     let existingPlayerId = null;
     for (const [playerId, p] of this.state.players.entries()) {
-      if ((p?.name || '').toLowerCase() === name.toLowerCase()) {
+      if (p && (p.name || '').toLowerCase() === name.toLowerCase()) {
         existingPlayerId = playerId;
         break;
       }
@@ -90,6 +90,9 @@ class ImposterRoom extends Room {
 
     // Mark connected + host flags
     const me = this.state.players.get(playerId);
+    if (!me) {
+      throw new Error('player_missing');
+    }
     me.connected = true;
     me.isHost = playerId === this.state.hostPlayerId;
 
@@ -229,7 +232,7 @@ class ImposterRoom extends Room {
     const currentName = this.state.currentPlayer;
     if (!currentName) return null;
     for (const [id, p] of this.state.players.entries()) {
-      if (p.name === currentName) return id;
+      if (p && p.name === currentName) return id;
     }
     return null;
   }

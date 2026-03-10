@@ -1,6 +1,6 @@
 const schema = require('@colyseus/schema');
 
-const { Schema, type, MapSchema, ArraySchema } = schema;
+const { Schema, MapSchema, ArraySchema } = schema;
 
 class PlayerState extends Schema {
   constructor() {
@@ -13,12 +13,6 @@ class PlayerState extends Schema {
     this.hasVoted = false;
   }
 }
-type('string')(PlayerState.prototype, 'id');
-type('string')(PlayerState.prototype, 'name');
-type('boolean')(PlayerState.prototype, 'connected');
-type('boolean')(PlayerState.prototype, 'isHost');
-type('boolean')(PlayerState.prototype, 'isAlive');
-type('boolean')(PlayerState.prototype, 'hasVoted');
 
 class ClueState extends Schema {
   constructor() {
@@ -27,8 +21,6 @@ class ClueState extends Schema {
     this.clue = '';
   }
 }
-type('string')(ClueState.prototype, 'sender');
-type('string')(ClueState.prototype, 'clue');
 
 class GameOverState extends Schema {
   constructor() {
@@ -39,10 +31,6 @@ class GameOverState extends Schema {
     this.secretWord = '';
   }
 }
-type('string')(GameOverState.prototype, 'winner');
-type('string')(GameOverState.prototype, 'ejected');
-type('string')(GameOverState.prototype, 'imposter');
-type('string')(GameOverState.prototype, 'secretWord');
 
 class RoomState extends Schema {
   constructor() {
@@ -62,24 +50,40 @@ class RoomState extends Schema {
   }
 }
 
-type('string')(RoomState.prototype, 'roomCode');
-type('string')(RoomState.prototype, 'gameState');
-type('string')(RoomState.prototype, 'hostPlayerId');
-type({ map: PlayerState })(RoomState.prototype, 'players');
-type([ 'string' ])(RoomState.prototype, 'turnOrder');
-type('string')(RoomState.prototype, 'currentPlayer');
-type([ ClueState ])(RoomState.prototype, 'clues');
-type('number')(RoomState.prototype, 'turnDeadlineMs');
-type('number')(RoomState.prototype, 'votingDeadlineMs');
-type('number')(RoomState.prototype, 'turnTotalSeconds');
-type('number')(RoomState.prototype, 'votingTotalSeconds');
-type(GameOverState)(RoomState.prototype, 'gameOver');
+schema.defineTypes(PlayerState, {
+  id: 'string',
+  name: 'string',
+  connected: 'boolean',
+  isHost: 'boolean',
+  isAlive: 'boolean',
+  hasVoted: 'boolean',
+});
 
-module.exports = {
-  schema,
-  PlayerState,
-  ClueState,
-  GameOverState,
-  RoomState,
-};
+schema.defineTypes(ClueState, {
+  sender: 'string',
+  clue: 'string',
+});
 
+schema.defineTypes(GameOverState, {
+  winner: 'string',
+  ejected: 'string',
+  imposter: 'string',
+  secretWord: 'string',
+});
+
+schema.defineTypes(RoomState, {
+  roomCode: 'string',
+  gameState: 'string',
+  hostPlayerId: 'string',
+  players: { map: PlayerState },
+  turnOrder: ['string'],
+  currentPlayer: 'string',
+  clues: [ClueState],
+  turnDeadlineMs: 'number',
+  votingDeadlineMs: 'number',
+  turnTotalSeconds: 'number',
+  votingTotalSeconds: 'number',
+  gameOver: GameOverState,
+});
+
+module.exports = { schema, PlayerState, ClueState, GameOverState, RoomState };
