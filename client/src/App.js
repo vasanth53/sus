@@ -30,10 +30,8 @@ function App() {
   const [hasJoined, setHasJoined] = useState(false);
   const [joinPending, setJoinPending] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState('connecting'); // connecting, connected, disconnected, error
-  const [joinMode, setJoinMode] = useState('public'); // public, quick, join-room, create-room
   const [roomCode, setRoomCode] = useState('');
   const [currentRoomId, setCurrentRoomId] = useState('public');
-  const [quickMatchQueued, setQuickMatchQueued] = useState(false);
   
   // Lobby State
   const [lobbyPlayers, setLobbyPlayers] = useState([]);
@@ -181,12 +179,6 @@ function App() {
       }
     });
 
-    newSocket.on('matchFound', (data) => {
-      setQuickMatchQueued(false);
-      if (data?.roomId) setCurrentRoomId(data.roomId);
-      setLastToast({ type: 'success', message: `Match found: ${data?.roomId}` });
-    });
-
     newSocket.on('gameOver', (result) => {
       setGameState('game-over');
       setGameOverResult(result);
@@ -210,75 +202,41 @@ function App() {
     return { name: nextName, pin: pin.trim(), token: shouldSendToken ? tokenCandidate : '' };
   };
 
-  const handleJoinGame = (e) => {
-    e.preventDefault();
+  const copyRoomCode = async (code) => {
+    const value = String(code || '').trim();
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value);
+      setLastToast({ type: 'success', message: 'Room code copied.' });
+    } catch {
+      setLastToast({ type: 'info', message: `Room code: ${value}` });
+    }
+  };
+
+  const joinRoom = (code, { toastPrefix = 'Joined room' } = {}) => {
+    const normalized = String(code || '').trim().toUpperCase();
+    if (!socket || !name.trim() || !pin.trim() || !normalized || joinPending) return;
+    setJoinPending(true);
+    socket.emit('joinRoom', { ...joinPayloadBase(), roomId: normalized }, (res) => {
+      setJoinPending(false);
+      if (res?.ok) {
+        setHasJoined(true);
+        if (res?.playerId) setMyPlayerId(res.playerId);
+        if (res?.token) {
+          setPlayerToken(res.token);
+          localStorage.setItem('imposter.token', res.token);
+        }
+        localStorage.setItem('imposter.name', name.trim());
+        setCurrentRoomId(res.roomId || normalized);
+        setLastToast({ type: 'success', message: `${toastPrefix} ${res.roomId || normalized}` });
+      } else {
+        setLastToast({ type: 'warning', message: `Join failed: ${res?.error || 'unknown'}` });
+      }
+    });
+  };
+
+  const joinPublic = () => {
     if (!socket || !name.trim() || !pin.trim() || joinPending) return;
-
-    if (joinMode === 'quick') {
-      if (quickMatchQueued) return;
-      setQuickMatchQueued(true);
-      socket.emit('quickMatch', { name: name.trim(), pin: pin.trim() }, (res) => {
-        if (!res?.ok) {
-          setQuickMatchQueued(false);
-          setLastToast({ type: 'warning', message: `Quick match failed: ${res?.error || 'unknown'}` });
-        } else {
-          setLastToast({ type: 'info', message: 'Queued for quick match…' });
-        }
-      });
-      return;
-    }
-
-    if (joinMode === 'create-room') {
-      setJoinPending(true);
-      socket.emit('createRoom', { pin: pin.trim() }, (res) => {
-        if (!res?.ok || !res?.roomId) {
-          setJoinPending(false);
-          setLastToast({ type: 'warning', message: `Create room failed: ${res?.error || 'unknown'}` });
-          return;
-        }
-        setRoomCode(res.roomId);
-        setCurrentRoomId(res.roomId);
-        socket.emit('joinRoom', { ...joinPayloadBase(), roomId: res.roomId }, (joinRes) => {
-          setJoinPending(false);
-          if (joinRes?.ok) {
-            setHasJoined(true);
-            if (joinRes?.playerId) setMyPlayerId(joinRes.playerId);
-            if (joinRes?.token) {
-              setPlayerToken(joinRes.token);
-              localStorage.setItem('imposter.token', joinRes.token);
-            }
-            localStorage.setItem('imposter.name', name.trim());
-            setLastToast({ type: 'success', message: `Created room ${res.roomId}` });
-          } else {
-            setLastToast({ type: 'warning', message: `Join failed: ${joinRes?.error || 'unknown'}` });
-          }
-        });
-      });
-      return;
-    }
-
-    if (joinMode === 'join-room') {
-      const code = roomCode.trim();
-      if (!code) return;
-      setJoinPending(true);
-      socket.emit('joinRoom', { ...joinPayloadBase(), roomId: code }, (res) => {
-        setJoinPending(false);
-        if (res?.ok) {
-          setHasJoined(true);
-          if (res?.playerId) setMyPlayerId(res.playerId);
-          if (res?.token) {
-            setPlayerToken(res.token);
-            localStorage.setItem('imposter.token', res.token);
-          }
-          localStorage.setItem('imposter.name', name.trim());
-          setCurrentRoomId(res.roomId || code);
-          setLastToast({ type: 'success', message: `Joined room ${res.roomId || code}` });
-        } else {
-          setLastToast({ type: 'warning', message: `Join failed: ${res?.error || 'unknown'}` });
-        }
-      });
-      return;
-    }
 
     setJoinPending(true);
     let settled = false;
@@ -289,10 +247,7 @@ function App() {
       setLastToast({ type: 'warning', message: 'Join timed out. Is the server running?' });
     }, 1200);
 
-    socket.emit(
-      'joinGame',
-      joinPayloadBase(),
-      (res) => {
+    socket.emit('joinGame', joinPayloadBase(), (res) => {
       if (settled) return;
       settled = true;
       clearTimeout(timeoutId);
@@ -309,8 +264,32 @@ function App() {
       } else {
         setLastToast({ type: 'warning', message: `Join failed: ${res?.error || 'unknown'}` });
       }
-      },
-    );
+    });
+  };
+
+  const createRoomAndJoin = () => {
+    if (!socket || !name.trim() || !pin.trim() || joinPending) return;
+    setJoinPending(true);
+    socket.emit('createRoom', { pin: pin.trim() }, (res) => {
+      if (!res?.ok || !res?.roomId) {
+        setJoinPending(false);
+        setLastToast({ type: 'warning', message: `Create room failed: ${res?.error || 'unknown'}` });
+        return;
+      }
+      const code = String(res.roomId).toUpperCase();
+      setRoomCode(code);
+      setCurrentRoomId(code);
+      setJoinPending(false);
+      joinRoom(code, { toastPrefix: 'Created room' });
+      copyRoomCode(code);
+    });
+  };
+
+  const handleJoinGame = (e) => {
+    e.preventDefault();
+    const code = roomCode.trim();
+    if (code) return joinRoom(code);
+    return joinPublic();
   };
 
   const handleStartGame = () => socket && socket.emit('startGame');
@@ -370,45 +349,15 @@ function App() {
     if (!hasJoined) {
       return (
         <div className="Card">
-          <h2 className="CardTitle">Join the lobby</h2>
-          <p className="CardHint">Pick a name and wait for at least one other player.</p>
-          <div className="JoinMode">
-            <button
-              type="button"
-              className={`Button ${joinMode === 'public' ? 'Primary' : ''}`}
-              onClick={() => { setJoinMode('public'); setQuickMatchQueued(false); }}
-            >
-              Public
-            </button>
-            <button
-              type="button"
-              className={`Button ${joinMode === 'quick' ? 'Primary' : ''}`}
-              onClick={() => { setJoinMode('quick'); setQuickMatchQueued(false); }}
-            >
-              Quick Match
-            </button>
-            <button
-              type="button"
-              className={`Button ${joinMode === 'join-room' ? 'Primary' : ''}`}
-              onClick={() => { setJoinMode('join-room'); setQuickMatchQueued(false); }}
-            >
-              Join Room
-            </button>
-            <button
-              type="button"
-              className={`Button ${joinMode === 'create-room' ? 'Primary' : ''}`}
-              onClick={() => { setJoinMode('create-room'); setQuickMatchQueued(false); }}
-            >
-              Create Room
-            </button>
-          </div>
+          <h2 className="CardTitle">Join</h2>
+          <p className="CardHint">Name + PIN. Room code is optional.</p>
           <form onSubmit={handleJoinGame} className="FormRow">
             <input
               className="Input"
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Enter your name"
+              placeholder="Name"
               maxLength={18}
               autoComplete="nickname"
             />
@@ -420,42 +369,43 @@ function App() {
                 !pin.trim() ||
                 !socket ||
                 joinPending ||
-                connectionStatus !== 'connected' ||
-                (joinMode === 'join-room' && !roomCode.trim()) ||
-                (joinMode === 'quick' && quickMatchQueued)
+                connectionStatus !== 'connected'
               }
             >
-              {joinMode === 'quick'
-                ? (quickMatchQueued ? 'Queued…' : 'Queue')
-                : (joinPending ? 'Working…' : 'Join')}
+              {joinPending ? 'Working…' : (roomCode.trim() ? 'Join room' : 'Join')}
             </button>
           </form>
-          {joinMode === 'join-room' && (
-            <div className="FormRow" style={{ marginTop: 10 }}>
-              <input
-                className="Input"
-                type="text"
-                value={roomCode}
-                onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
-                placeholder="Room code (e.g. R_ABC123)"
-                autoComplete="off"
-              />
-            </div>
-          )}
-          {joinMode === 'create-room' && roomCode.trim() && (
-            <div className="MetaRow">
-              <span className="Pill PillNeutral">Room: {roomCode}</span>
-            </div>
-          )}
           <div className="FormRow" style={{ marginTop: 10 }}>
             <input
               className="Input"
               type="password"
               value={pin}
               onChange={(e) => setPin(e.target.value)}
-              placeholder="Game PIN (required)"
+              placeholder="PIN"
               autoComplete="off"
             />
+            <button
+              type="button"
+              className="Button"
+              onClick={createRoomAndJoin}
+              disabled={!name.trim() || !pin.trim() || !socket || joinPending || connectionStatus !== 'connected'}
+              title="Create a new room and copy the code"
+            >
+              Create
+            </button>
+          </div>
+          <div className="FormRow" style={{ marginTop: 10 }}>
+            <input
+              className="Input"
+              type="text"
+              value={roomCode}
+              onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
+              placeholder="Room code (optional)"
+              autoComplete="off"
+            />
+            <button type="button" className="Button" onClick={() => copyRoomCode(roomCode)} disabled={!roomCode.trim()}>
+              Copy
+            </button>
           </div>
           <div className="MetaRow">
             <span className={`Pill ${connectionStatus === 'connected' ? 'PillOk' : 'PillWarn'}`}>
