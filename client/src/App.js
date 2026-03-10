@@ -110,7 +110,7 @@ function App() {
   useEffect(() => {
     const hasActiveTimer = Boolean(turnDeadlineMs || votingDeadlineMs);
     if (!hasActiveTimer) return;
-    const id = setInterval(() => setClockMs(Date.now()), 80);
+    const id = setInterval(() => setClockMs(Date.now()), 100);
     return () => clearInterval(id);
   }, [turnDeadlineMs, votingDeadlineMs]);
 
