@@ -1,65 +1,52 @@
 :root {
-  --font-display: "Press Start 2P", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  --font-body: "VT323", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --font-display: "IM Fell English SC", ui-serif, Georgia, "Times New Roman", serif;
+  --font-body: "Patrick Hand", ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
 
-  --bg0: #070b14;
-  --bg1: #0a1222;
-  --card: #0b1326;
-  --card2: #091022;
-  --border: rgba(255, 255, 255, 0.18);
-  --text: rgba(255, 255, 255, 0.92);
-  --muted: rgba(255, 255, 255, 0.68);
+  --ink: #1e2a2d;
+  --ink-2: rgba(30, 42, 45, 0.72);
+  --wash: #cfe9e1;
+  --sea: #d8f1ea;
+  --sea-2: #c3e6dc;
+  --paper: rgba(255, 255, 255, 0.78);
+  --paper-2: rgba(255, 255, 255, 0.66);
+  --line: rgba(30, 42, 45, 0.18);
+  --line-2: rgba(30, 42, 45, 0.10);
 
-  --ok: #22c55e;
-  --warn: #fbbf24;
-  --danger: #fb7185;
-  --primary: #60a5fa;
-  --primary2: #a78bfa;
+  --ok: #2f9e7a;
+  --warn: #b98d1a;
+  --danger: #b33a47;
+  --primary: #244f86;
+  --primary-2: #3c78c2;
 }
 
 .App {
   min-height: 100vh;
   position: relative;
   isolation: isolate;
+  font-family: var(--font-body);
+  color: var(--ink);
   background:
-    repeating-linear-gradient(
-      0deg,
-      rgba(255, 255, 255, 0.03) 0px,
-      rgba(255, 255, 255, 0.03) 1px,
-      rgba(0, 0, 0, 0) 1px,
-      rgba(0, 0, 0, 0) 10px
-    ),
-    repeating-linear-gradient(
-      90deg,
-      rgba(255, 255, 255, 0.02) 0px,
-      rgba(255, 255, 255, 0.02) 1px,
-      rgba(0, 0, 0, 0) 1px,
-      rgba(0, 0, 0, 0) 10px
-    ),
-    linear-gradient(180deg, var(--bg0), var(--bg1));
-  color: var(--text);
+    repeating-linear-gradient(0deg, var(--line-2) 0px, var(--line-2) 1px, transparent 1px, transparent 22px),
+    repeating-linear-gradient(90deg, var(--line-2) 0px, var(--line-2) 1px, transparent 1px, transparent 22px),
+    radial-gradient(900px 520px at 20% 0%, rgba(255, 255, 255, 0.7), transparent 55%),
+    linear-gradient(180deg, var(--sea), var(--sea-2));
 }
 
 .SpaceView {
   position: fixed;
   left: 50%;
-  top: 86px;
+  top: 10px;
   transform: translateX(-50%);
   width: min(1120px, calc(100% - 28px));
-  height: min(520px, 42vh);
+  height: 210px;
   z-index: 0;
-  border-radius: 0;
-  border: 2px solid var(--border);
+  border-radius: 18px;
+  border: 2px solid var(--ink);
   background:
-    var(--au-stars, none) 0 0 / 320px 180px repeat,
-    var(--au-parallax3, none) bottom center / cover no-repeat,
-    var(--au-parallax2, none) bottom center / cover no-repeat,
-    var(--au-parallax1, none) bottom center / cover no-repeat;
-  opacity: 0.9;
-  filter: saturate(1.02) contrast(1.05) brightness(0.92);
-  box-shadow:
-    0 18px 0 rgba(0, 0, 0, 0.55),
-    0 0 0 2px rgba(0, 0, 0, 0.65);
+    url("./assets/tiny-ships.svg") center / cover no-repeat,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.35));
+  box-shadow: 6px 8px 0 rgba(30, 42, 45, 0.35);
+  filter: saturate(1.02) contrast(1.02);
   overflow: hidden;
 }
 
@@ -68,25 +55,9 @@
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(800px 420px at 70% 30%, rgba(124, 92, 255, 0.18), transparent 60%),
-    radial-gradient(900px 520px at 20% 0%, rgba(56, 189, 248, 0.14), transparent 60%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.10), transparent 55%);
-  mix-blend-mode: screen;
-  opacity: 0.65;
-  pointer-events: none;
-}
-
-.SpaceView::before {
-  content: "";
-  position: absolute;
-  inset: -2px;
-  background: repeating-linear-gradient(
-    to bottom,
-    rgba(255, 255, 255, 0.06) 0px,
-    rgba(255, 255, 255, 0.03) 1px,
-    rgba(255, 255, 255, 0.00) 3px
-  );
-  opacity: 0.18;
+    radial-gradient(900px 220px at 50% 0%, rgba(255, 255, 255, 0.55), transparent 60%),
+    radial-gradient(900px 280px at 20% 40%, rgba(36, 79, 134, 0.09), transparent 60%),
+    radial-gradient(900px 280px at 80% 50%, rgba(47, 158, 122, 0.07), transparent 60%);
   pointer-events: none;
 }
 
@@ -96,8 +67,8 @@
   z-index: 0;
   pointer-events: none;
   background:
-    radial-gradient(1200px 680px at 50% 18%, rgba(0, 0, 0, 0.12), transparent 55%),
-    radial-gradient(1400px 900px at 50% 100%, rgba(0, 0, 0, 0.78), transparent 60%);
+    radial-gradient(1200px 680px at 50% 10%, rgba(255, 255, 255, 0.55), transparent 60%),
+    radial-gradient(1400px 900px at 50% 100%, rgba(30, 42, 45, 0.18), transparent 60%);
 }
 
 .TopBar {
@@ -108,9 +79,10 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 16px 18px;
-  border-bottom: 2px solid var(--border);
-  background: rgba(7, 11, 20, 0.9);
+  padding: 14px 18px;
+  border-bottom: 2px solid var(--ink);
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(8px);
 }
 
 .Brand {
@@ -122,23 +94,22 @@
 .LogoDot {
   width: 14px;
   height: 14px;
-  border-radius: 2px;
-  background: linear-gradient(180deg, var(--primary2), var(--primary));
-  border: 2px solid rgba(0, 0, 0, 0.55);
-  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6);
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--primary-2), var(--primary));
+  border: 2px solid var(--ink);
+  box-shadow: 2px 2px 0 rgba(30, 42, 45, 0.28);
 }
 
 .BrandTitle {
   font-family: var(--font-display);
-  font-size: 14px;
+  font-size: 18px;
   line-height: 1.05;
-  letter-spacing: 0;
-  text-transform: uppercase;
+  letter-spacing: 0.4px;
 }
 
 .BrandSubtitle {
   font-size: 16px;
-  color: var(--muted);
+  color: var(--ink-2);
 }
 
 .TopBarRight {
@@ -150,120 +121,98 @@
 .Main {
   max-width: 1040px;
   margin: 0 auto;
-  padding: 16px 18px 40px;
+  padding: 230px 18px 44px;
   position: relative;
   z-index: 1;
 }
 
 .MonitorFrame {
   position: relative;
-  padding: 14px;
-  border-radius: 0;
-  background: rgba(0, 0, 0, 0.28);
-  border: 2px solid var(--border);
-  box-shadow:
-    0 18px 0 rgba(0, 0, 0, 0.55),
-    0 0 0 2px rgba(0, 0, 0, 0.65);
+  padding: 16px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.56);
+  border: 2px solid var(--ink);
+  box-shadow: 8px 10px 0 rgba(30, 42, 45, 0.34);
 }
 
 .MonitorBezel {
-  position: absolute;
-  inset: 8px 8px 52px 8px;
-  border-radius: 0;
-  background: rgba(0, 0, 0, 0.38);
-  border: 2px solid rgba(0, 0, 0, 0.65);
-  box-shadow:
-    inset 0 0 0 2px rgba(255, 255, 255, 0.06);
+  display: none;
 }
 
 .MonitorScreen {
   position: relative;
   z-index: 1;
-  border-radius: 0;
+  border-radius: 14px;
   padding: 14px;
-  background: rgba(6, 10, 18, 0.92);
-  border: 2px solid var(--border);
-  box-shadow:
-    inset 0 0 0 2px rgba(0, 0, 0, 0.55);
+  background:
+    linear-gradient(180deg, var(--paper), var(--paper-2));
+  border: 2px solid var(--ink);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.25);
 }
 
 .MonitorScreen::before {
   content: "";
   position: absolute;
   inset: 0;
-  border-radius: 0;
+  border-radius: 14px;
   pointer-events: none;
   background:
     repeating-linear-gradient(
       to bottom,
-      rgba(255, 255, 255, 0.05) 0px,
-      rgba(255, 255, 255, 0.02) 1px,
-      rgba(255, 255, 255, 0.00) 3px
+      rgba(30, 42, 45, 0.06) 0px,
+      rgba(30, 42, 45, 0.03) 1px,
+      rgba(0, 0, 0, 0) 7px
     );
-  opacity: 0.16;
-  mix-blend-mode: normal;
+  opacity: 0.6;
 }
 
 .ConsoleStrip {
-  position: absolute;
-  left: 10px;
-  right: 10px;
-  bottom: 10px;
-  height: 38px;
-  border-radius: 0;
+  margin-top: 12px;
+  height: auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 0 12px;
-  background: rgba(0, 0, 0, 0.28);
-  border: 2px solid rgba(255, 255, 255, 0.10);
-  box-shadow: none;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.55);
+  border: 2px solid var(--ink);
+  box-shadow: 4px 6px 0 rgba(30, 42, 45, 0.26);
 }
 
 .ConsoleLights {
   display: flex;
-  gap: 6px;
-  align-items: center;
+  gap: 8px;
 }
 
 .Light {
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.16);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.22);
+  border: 2px solid var(--ink);
+  background: rgba(255, 255, 255, 0.75);
+  box-shadow: 1px 1px 0 rgba(30, 42, 45, 0.25);
 }
 
 .Light.Ok {
-  background: rgba(58, 210, 159, 0.85);
-  border-color: rgba(58, 210, 159, 0.65);
-  box-shadow: 0 0 18px rgba(58, 210, 159, 0.55), 0 0 0 2px rgba(0, 0, 0, 0.22);
+  background: rgba(47, 158, 122, 0.7);
 }
-
 .Light.Warn {
-  background: rgba(255, 209, 102, 0.9);
-  border-color: rgba(255, 209, 102, 0.65);
-  box-shadow: 0 0 18px rgba(255, 209, 102, 0.55), 0 0 0 2px rgba(0, 0, 0, 0.22);
+  background: rgba(185, 141, 26, 0.7);
 }
-
 .Light.Danger {
-  background: rgba(255, 93, 93, 0.9);
-  border-color: rgba(255, 93, 93, 0.65);
-  box-shadow: 0 0 18px rgba(255, 93, 93, 0.55), 0 0 0 2px rgba(0, 0, 0, 0.22);
+  background: rgba(179, 58, 71, 0.75);
 }
-
 .Light.Neutral {
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.75);
 }
 
 .ConsoleText {
   flex: 1;
   text-align: center;
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.68);
-  letter-spacing: 0.4px;
+  font-size: 16px;
+  color: var(--ink-2);
+  letter-spacing: 0.35px;
 }
 
 .ConsoleButtons {
@@ -272,43 +221,42 @@
 }
 
 .ConsoleBtn {
-  width: 18px;
-  height: 18px;
-  border-radius: 0;
-  background: rgba(255, 255, 255, 0.06);
-  border: 2px solid rgba(0, 0, 0, 0.6);
-  box-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6);
+  width: 16px;
+  height: 16px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.65);
+  border: 2px solid var(--ink);
+  box-shadow: 1px 1px 0 rgba(30, 42, 45, 0.22);
 }
 
 .Grid {
   display: grid;
-  grid-template-columns: 1.3fr 0.9fr;
+  grid-template-columns: 1.2fr 0.9fr;
   gap: 14px;
 }
 
 @media (max-width: 980px) {
-  .Grid {
-    grid-template-columns: 1fr;
-  }
+  .Main { padding-top: 220px; }
+  .Grid { grid-template-columns: 1fr; }
+  .SpaceView { height: 190px; }
 }
 
 .Card {
-  border: 2px solid var(--border);
-  background: linear-gradient(180deg, var(--card), var(--card2));
-  border-radius: 0;
+  border: 2px solid var(--ink);
+  background: linear-gradient(180deg, var(--paper), var(--paper-2));
+  border-radius: 16px;
   padding: 16px;
-  box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.55);
+  box-shadow: 6px 8px 0 rgba(30, 42, 45, 0.28);
 }
 
 .Card.Subtle {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.015));
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.50));
 }
 
 .CardTitle {
   margin: 0;
   font-family: var(--font-display);
-  letter-spacing: 0;
-  text-transform: uppercase;
+  letter-spacing: 0.35px;
 }
 
 .CardTitle.Small {
@@ -317,14 +265,14 @@
 
 .CardHint {
   margin: 10px 0 14px;
-  color: var(--muted);
+  color: var(--ink-2);
   font-size: 18px;
   line-height: 1.35;
 }
 
 .Strong {
-  color: var(--text);
-  font-weight: 600;
+  color: var(--ink);
+  font-weight: 700;
 }
 
 .Row {
@@ -359,82 +307,81 @@
 .Input {
   flex: 1;
   height: 42px;
-  border-radius: 0;
-  border: 2px solid rgba(0, 0, 0, 0.65);
-  background: rgba(0, 0, 0, 0.28);
-  color: var(--text);
+  border-radius: 12px;
+  border: 2px solid var(--ink);
+  background: rgba(255, 255, 255, 0.8);
+  color: var(--ink);
   padding: 0 12px;
   outline: none;
-  box-shadow: inset 2px 2px 0 rgba(255, 255, 255, 0.05);
+  box-shadow: inset 2px 3px 0 rgba(30, 42, 45, 0.10);
+}
+
+.Input::placeholder {
+  color: rgba(30, 42, 45, 0.5);
+}
+
+.Input:focus {
+  box-shadow: inset 2px 3px 0 rgba(30, 42, 45, 0.10), 0 0 0 3px rgba(36, 79, 134, 0.18);
 }
 
 .Input:disabled {
-  opacity: 0.65;
+  opacity: 0.7;
 }
 
 .Button {
   height: 42px;
   padding: 0 14px;
-  border-radius: 0;
-  border: 2px solid rgba(0, 0, 0, 0.65);
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--text);
+  border-radius: 12px;
+  border: 2px solid var(--ink);
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--ink);
   cursor: pointer;
-  transition: transform 80ms ease;
-  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.65);
-  text-transform: uppercase;
+  transition: transform 90ms ease, box-shadow 90ms ease;
+  box-shadow: 3px 4px 0 rgba(30, 42, 45, 0.35);
   font-family: var(--font-display);
-  font-size: 11px;
+  font-size: 14px;
+  letter-spacing: 0.25px;
 }
 
 .Button:hover {
   transform: translateY(-1px);
+  box-shadow: 4px 6px 0 rgba(30, 42, 45, 0.35);
+}
+
+.Button:active {
+  transform: translateY(0px);
+  box-shadow: 2px 3px 0 rgba(30, 42, 45, 0.30);
 }
 
 .Button:disabled {
   cursor: not-allowed;
-  opacity: 0.55;
+  opacity: 0.6;
   transform: none;
+  box-shadow: 3px 4px 0 rgba(30, 42, 45, 0.2);
 }
 
 .Button.Primary {
-  border-color: rgba(0, 0, 0, 0.72);
-  background: linear-gradient(180deg, rgba(96, 165, 250, 0.45), rgba(96, 165, 250, 0.18));
-  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.75), 0 0 0 2px rgba(96, 165, 250, 0.2);
+  background: linear-gradient(180deg, rgba(60, 120, 194, 0.36), rgba(36, 79, 134, 0.20));
 }
 
 .Pill {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  height: 26px;
+  height: 28px;
   padding: 0 10px;
-  border-radius: 0;
-  border: 2px solid rgba(0, 0, 0, 0.65);
-  background: rgba(0, 0, 0, 0.22);
-  font-size: 12px;
-  color: var(--muted);
+  border-radius: 999px;
+  border: 2px solid var(--ink);
+  background: rgba(255, 255, 255, 0.66);
+  font-size: 14px;
+  color: var(--ink-2);
   font-family: var(--font-display);
 }
 
-.PillOk {
-  border-color: rgba(58, 210, 159, 0.35);
-  color: rgba(58, 210, 159, 0.95);
-}
-
-.PillWarn {
-  border-color: rgba(255, 209, 102, 0.35);
-  color: rgba(255, 209, 102, 0.95);
-}
-
-.PillDanger {
-  border-color: rgba(255, 93, 93, 0.35);
-  color: rgba(255, 93, 93, 0.95);
-}
-
-.PillNeutral {
-  border-color: rgba(255, 255, 255, 0.12);
-}
+.PillOk { color: var(--ok); }
+.PillWarn { color: var(--warn); }
+.PillDanger { color: var(--danger); }
+.PillNeutral { color: var(--ink-2); }
 
 .MetaRow {
   margin-top: 12px;
@@ -445,8 +392,8 @@
 }
 
 .MetaText {
-  font-size: 12px;
-  color: var(--muted);
+  font-size: 16px;
+  color: var(--ink-2);
 }
 
 .PlayerList {
@@ -460,10 +407,10 @@
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
-  border-radius: 0;
-  background: rgba(0, 0, 0, 0.20);
-  border: 2px solid rgba(0, 0, 0, 0.65);
-  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.55);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.62);
+  border: 2px solid var(--ink);
+  box-shadow: 3px 4px 0 rgba(30, 42, 45, 0.26);
 }
 
 .Avatar {
@@ -471,27 +418,28 @@
   height: 30px;
   display: grid;
   place-items: center;
-  border-radius: 10px;
+  border-radius: 999px;
   font-family: var(--font-display);
-  background: rgba(124, 92, 255, 0.18);
-  border: 1px solid rgba(124, 92, 255, 0.3);
+  background: rgba(36, 79, 134, 0.10);
+  border: 2px solid var(--ink);
 }
 
 .PlayerName {
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .Actions {
   margin-top: 14px;
   display: flex;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
 .List {
   margin: 10px 0 0;
   padding-left: 18px;
-  color: var(--muted);
-  font-size: 14px;
+  color: var(--ink-2);
+  font-size: 16px;
   line-height: 1.4;
 }
 
@@ -500,35 +448,34 @@
 }
 
 .List .Active {
-  color: var(--text);
-  font-weight: 600;
+  color: var(--ink);
+  font-weight: 700;
 }
 
 .Code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   padding: 0 6px;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(0, 0, 0, 0.22);
+  border-radius: 10px;
+  border: 2px solid var(--ink);
+  background: rgba(255, 255, 255, 0.58);
 }
 
 .WordBox {
   margin-top: 12px;
   padding: 12px;
   border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  background: radial-gradient(600px 260px at 30% 0%, rgba(124, 92, 255, 0.16), transparent 55%),
-    rgba(0, 0, 0, 0.18);
+  border: 2px dashed rgba(30, 42, 45, 0.55);
+  background: rgba(255, 255, 255, 0.62);
 }
 
 .WordLabel {
-  font-size: 12px;
-  color: var(--muted);
+  font-size: 14px;
+  color: var(--ink-2);
 }
 
 .WordValue {
   font-family: var(--font-display);
-  font-size: 28px;
+  font-size: 30px;
   line-height: 1.1;
   margin-top: 4px;
 }
@@ -544,23 +491,24 @@
   grid-template-columns: 1fr 2fr;
   gap: 10px;
   padding: 10px 12px;
-  border-radius: 12px;
-  background: rgba(0, 0, 0, 0.16);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.62);
+  border: 2px solid rgba(30, 42, 45, 0.8);
+  box-shadow: 2px 3px 0 rgba(30, 42, 45, 0.22);
 }
 
 .ClueSender {
-  font-weight: 600;
-  color: var(--text);
+  font-weight: 700;
+  color: var(--ink);
 }
 
 .ClueText {
-  color: rgba(255, 255, 255, 0.82);
+  color: rgba(30, 42, 45, 0.88);
 }
 
 .Empty {
-  color: var(--muted);
-  font-size: 14px;
+  color: var(--ink-2);
+  font-size: 16px;
   padding: 8px 0;
 }
 
@@ -572,22 +520,22 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  color: var(--muted);
-  font-size: 12px;
+  color: var(--ink-2);
+  font-size: 14px;
   margin-bottom: 6px;
 }
 
 .TimerTrack {
-  height: 10px;
+  height: 12px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.62);
+  border: 2px solid var(--ink);
   overflow: hidden;
 }
 
 .TimerFill {
   height: 100%;
-  background: linear-gradient(90deg, rgba(124, 92, 255, 0.9), rgba(56, 189, 248, 0.9));
+  background: linear-gradient(90deg, rgba(47, 158, 122, 0.85), rgba(36, 79, 134, 0.85));
   width: 100%;
   transform-origin: left center;
   transform: scaleX(var(--fill, 0));
@@ -603,8 +551,8 @@
 
 .Notice {
   margin-top: 10px;
-  color: var(--muted);
-  font-size: 13px;
+  color: var(--ink-2);
+  font-size: 16px;
 }
 
 .Toast {
@@ -615,44 +563,36 @@
   z-index: 10;
   max-width: min(720px, calc(100% - 28px));
   padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(0, 0, 0, 0.38);
-  color: var(--text);
-  font-size: 13px;
-  backdrop-filter: blur(10px);
+  border-radius: 14px;
+  border: 2px solid var(--ink);
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--ink);
+  font-size: 16px;
+  box-shadow: 5px 6px 0 rgba(30, 42, 45, 0.24);
 }
 
-.Toast.success {
-  border-color: rgba(58, 210, 159, 0.35);
-}
-
-.Toast.warning {
-  border-color: rgba(255, 209, 102, 0.35);
-}
-
-.Toast.info {
-  border-color: rgba(255, 255, 255, 0.18);
-}
+.Toast.success { border-color: rgba(47, 158, 122, 0.9); }
+.Toast.warning { border-color: rgba(185, 141, 26, 0.9); }
+.Toast.info { border-color: rgba(30, 42, 45, 0.9); }
 
 .ResultRow {
   display: flex;
   justify-content: space-between;
   gap: 12px;
   padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  background: rgba(0, 0, 0, 0.16);
+  border-radius: 14px;
+  border: 2px solid var(--ink);
+  background: rgba(255, 255, 255, 0.64);
   margin-top: 10px;
 }
 
 .ResultLabel {
-  color: var(--muted);
-  font-size: 12px;
+  color: var(--ink-2);
+  font-size: 14px;
 }
 
 .ResultValue {
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .PhaseBanner {
@@ -661,6 +601,5 @@
   object-fit: contain;
   display: block;
   margin: 6px 0 10px;
-  filter: drop-shadow(0 12px 22px rgba(0, 0, 0, 0.45));
-  opacity: 0.95;
+  opacity: 0.12; /* keep layout but de-emphasize old AmongUs banner */
 }

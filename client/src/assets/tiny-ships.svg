@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 240">
+  <defs>
+    <style>
+      .ink{fill:none;stroke:#1e2a2d;stroke-width:3;stroke-linecap:round;stroke-linejoin:round;opacity:.9}
+      .wash{fill:#cfe9e1;opacity:.55}
+      .flag{fill:#f26d7d;stroke:#1e2a2d;stroke-width:3;stroke-linejoin:round}
+    </style>
+  </defs>
+
+  <rect class="wash" x="0" y="0" width="1200" height="240"/>
+
+  <path class="ink" d="M20 88 C120 76, 220 98, 320 86 S520 82, 640 92 S820 100, 980 84 S1100 78, 1180 90"/>
+  <path class="ink" d="M30 120 C140 108, 250 132, 360 118 S560 112, 700 124 S900 140, 1170 122"/>
+
+  <path class="ink" d="M0 156 C60 138, 120 174, 180 156 S300 138, 360 156 S480 174, 540 156 S660 138, 720 156 S840 174, 900 156 S1020 138, 1080 156 S1140 174, 1200 156"/>
+  <path class="ink" d="M0 190 C70 172, 140 208, 210 190 S350 172, 420 190 S560 208, 630 190 S770 172, 840 190 S980 208, 1050 190 S1130 172, 1200 190"/>
+
+  <path class="ink" d="M170 130 L170 78"/>
+  <path class="ink" d="M170 78 L232 96 L170 108 Z"/>
+  <path class="ink" d="M168 132 C190 140, 220 140, 250 132 C236 154, 186 154, 168 132 Z"/>
+  <path class="flag" d="M232 96 L250 84 L250 104 Z"/>
+
+  <path class="ink" d="M540 134 L540 70"/>
+  <path class="ink" d="M540 70 L615 96 L540 114 Z"/>
+  <path class="ink" d="M542 94 L595 114"/>
+  <path class="ink" d="M520 136 C548 148, 590 148, 630 136 C610 166, 546 166, 520 136 Z"/>
+  <path class="flag" d="M615 96 L635 82 L635 106 Z"/>
+
+  <path class="ink" d="M930 132 L930 76"/>
+  <path class="ink" d="M930 76 L985 94 L930 110 Z"/>
+  <path class="ink" d="M910 134 C936 144, 970 144, 1010 134 C992 158, 936 162, 910 134 Z"/>
+  <path class="flag" d="M985 94 L1002 82 L1002 104 Z"/>
+
+  <path class="ink" d="M430 46 C452 22, 518 24, 540 46 C560 66, 520 80, 492 74 C458 66, 414 70, 404 58 C396 48, 412 40, 430 46 Z"/>
+</svg>
+
