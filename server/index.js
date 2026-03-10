@@ -201,6 +201,38 @@ function getPlayerBySocket(room, socketId) {
 }
 
 function attachSocket(room, player, socket) {
+  // If this socket was previously in any other game rooms, detach it so it
+  // doesn't keep receiving room broadcasts (which can overwrite client state).
+  try {
+    const joinedRooms = socket.rooms instanceof Set ? Array.from(socket.rooms) : [];
+    for (const joinedId of joinedRooms) {
+      if (!joinedId || joinedId === socket.id || joinedId === room.id) continue;
+      const prevRoom = rooms.get(joinedId);
+      if (prevRoom) {
+        const prevPlayerId = prevRoom.socketToPlayerId?.[socket.id];
+        if (prevPlayerId) {
+          delete prevRoom.socketToPlayerId[socket.id];
+          const prevPlayer = prevRoom.players?.[prevPlayerId];
+          if (prevPlayer) {
+            prevPlayer.connected = false;
+            prevPlayer.socketId = null;
+            prevPlayer.disconnectedAtMs = nowMs();
+          }
+          if (prevRoom.gameState === 'lobby' && prevRoom.hostPlayerId === prevPlayerId) {
+            const nextHost = Object.values(prevRoom.players).find((p) => p.connected);
+            prevRoom.hostPlayerId = nextHost?.id || null;
+          }
+          pruneRoom(prevRoom);
+          broadcastLobby(prevRoom);
+          prevRoom.lastActiveAtMs = nowMs();
+        }
+      }
+      socket.leave(joinedId);
+    }
+  } catch {
+    // best-effort cleanup only
+  }
+
   if (player.socketId && room.socketToPlayerId[player.socketId] === player.id) {
     delete room.socketToPlayerId[player.socketId];
   }
