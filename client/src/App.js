@@ -25,7 +25,6 @@ function App() {
   const [socket, setSocket] = useState(null);
   const [myPlayerId, setMyPlayerId] = useState(null);
   const [name, setName] = useState('');
-  const [pin, setPin] = useState('');
   const [playerToken, setPlayerToken] = useState('');
   const [hasJoined, setHasJoined] = useState(false);
   const [joinPending, setJoinPending] = useState(false);
@@ -199,7 +198,7 @@ function App() {
     const storedToken = (localStorage.getItem('imposter.token') || '').trim();
     const tokenCandidate = (playerToken || storedToken).trim();
     const shouldSendToken = tokenCandidate && storedName.toLowerCase() === nextName.toLowerCase();
-    return { name: nextName, pin: pin.trim(), token: shouldSendToken ? tokenCandidate : '' };
+    return { name: nextName, token: shouldSendToken ? tokenCandidate : '' };
   };
 
   const copyRoomCode = async (code) => {
@@ -215,7 +214,7 @@ function App() {
 
   const joinRoom = (code, { toastPrefix = 'Joined room' } = {}) => {
     const normalized = String(code || '').trim().toUpperCase();
-    if (!socket || !name.trim() || !pin.trim() || !normalized || joinPending) return;
+    if (!socket || !name.trim() || !normalized || joinPending) return;
     setJoinPending(true);
     socket.emit('joinRoom', { ...joinPayloadBase(), roomId: normalized }, (res) => {
       setJoinPending(false);
@@ -235,42 +234,10 @@ function App() {
     });
   };
 
-  const joinPublic = () => {
-    if (!socket || !name.trim() || !pin.trim() || joinPending) return;
-
-    setJoinPending(true);
-    let settled = false;
-    const timeoutId = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      setJoinPending(false);
-      setLastToast({ type: 'warning', message: 'Join timed out. Is the server running?' });
-    }, 1200);
-
-    socket.emit('joinGame', joinPayloadBase(), (res) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timeoutId);
-      setJoinPending(false);
-      if (res?.ok) {
-        setHasJoined(true);
-        if (res?.playerId) setMyPlayerId(res.playerId);
-        if (res?.token) {
-          setPlayerToken(res.token);
-          localStorage.setItem('imposter.token', res.token);
-        }
-        localStorage.setItem('imposter.name', name.trim());
-        setLastToast({ type: 'success', message: res?.isHost ? 'Joined as host.' : 'Joined the lobby.' });
-      } else {
-        setLastToast({ type: 'warning', message: `Join failed: ${res?.error || 'unknown'}` });
-      }
-    });
-  };
-
   const createRoomAndJoin = () => {
-    if (!socket || !name.trim() || !pin.trim() || joinPending) return;
+    if (!socket || !name.trim() || joinPending) return;
     setJoinPending(true);
-    socket.emit('createRoom', { pin: pin.trim() }, (res) => {
+    socket.emit('createRoom', {}, (res) => {
       if (!res?.ok || !res?.roomId) {
         setJoinPending(false);
         setLastToast({ type: 'warning', message: `Create room failed: ${res?.error || 'unknown'}` });
@@ -288,8 +255,8 @@ function App() {
   const handleJoinGame = (e) => {
     e.preventDefault();
     const code = roomCode.trim();
-    if (code) return joinRoom(code);
-    return joinPublic();
+    if (!code) return setLastToast({ type: 'warning', message: 'Enter a room code.' });
+    return joinRoom(code);
   };
 
   const handleStartGame = () => socket && socket.emit('startGame');
@@ -350,7 +317,7 @@ function App() {
       return (
         <div className="Card">
           <h2 className="CardTitle">Join</h2>
-          <p className="CardHint">Name + PIN. Room code is optional.</p>
+          <p className="CardHint">Type your name, then join with a room code.</p>
           <form onSubmit={handleJoinGame} className="FormRow">
             <input
               className="Input"
@@ -366,45 +333,37 @@ function App() {
               type="submit"
               disabled={
                 !name.trim() ||
-                !pin.trim() ||
+                !roomCode.trim() ||
                 !socket ||
                 joinPending ||
                 connectionStatus !== 'connected'
               }
             >
-              {joinPending ? 'Working…' : (roomCode.trim() ? 'Join room' : 'Join')}
+              {joinPending ? 'Working…' : 'Join'}
             </button>
           </form>
-          <div className="FormRow" style={{ marginTop: 10 }}>
-            <input
-              className="Input"
-              type="password"
-              value={pin}
-              onChange={(e) => setPin(e.target.value)}
-              placeholder="PIN"
-              autoComplete="off"
-            />
-            <button
-              type="button"
-              className="Button"
-              onClick={createRoomAndJoin}
-              disabled={!name.trim() || !pin.trim() || !socket || joinPending || connectionStatus !== 'connected'}
-              title="Create a new room and copy the code"
-            >
-              Create
-            </button>
-          </div>
           <div className="FormRow" style={{ marginTop: 10 }}>
             <input
               className="Input"
               type="text"
               value={roomCode}
               onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
-              placeholder="Room code (optional)"
+              placeholder="Room code"
               autoComplete="off"
             />
             <button type="button" className="Button" onClick={() => copyRoomCode(roomCode)} disabled={!roomCode.trim()}>
               Copy
+            </button>
+          </div>
+          <div className="Actions" style={{ marginTop: 10 }}>
+            <button
+              type="button"
+              className="Button"
+              onClick={createRoomAndJoin}
+              disabled={!name.trim() || !socket || joinPending || connectionStatus !== 'connected'}
+              title="Create a new room and copy the code"
+            >
+              Create room
             </button>
           </div>
           <div className="MetaRow">

@@ -46,7 +46,7 @@ Backend env vars:
 - `PORT` (default `3001`)
 - `HOST` (default `0.0.0.0`)
 - `CLIENT_ORIGIN` (default `http://localhost:3000`) — Socket.IO CORS origin
-- `GAME_PIN` (required) — players must enter this PIN to join
+- `GAME_PIN` (optional) — if set, players must enter this PIN to join/create rooms
 - `MAX_PLAYERS` (default `10`)
 
 Frontend env vars (CRA build-time):
@@ -75,7 +75,6 @@ Tip: see `client/.env.example`.
 Netlify Functions/Edge Functions are request-based and don’t run a long-lived Socket.IO server, so the backend needs a WebSocket-capable host (Render/Fly/Railway/etc).
 
 Backend required env vars:
-- `GAME_PIN` (required)
 - `CLIENT_ORIGIN` (set to your Netlify site URL; you can use a comma-separated list, or `*` to allow any origin)
 
 Tip: see `server/.env.example`.

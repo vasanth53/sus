@@ -37,8 +37,8 @@ const WORDS = ['Apple', 'Bicycle', 'Telescope', 'Guitar', 'Sunshine', 'Ocean'];
 const TURN_SECONDS = Number(process.env.TURN_SECONDS || 30);
 const VOTING_SECONDS = Number(process.env.VOTING_SECONDS || 25);
 
-// Mandatory server PIN (used for join + matchmaking)
-const GAME_PIN = String(process.env.GAME_PIN || '1234');
+// Optional server PIN (if set, required for join + matchmaking)
+const GAME_PIN = String(process.env.GAME_PIN || '').trim();
 
 const MAX_PLAYERS_PER_ROOM = Number(process.env.MAX_PLAYERS || 10);
 const PRUNE_DISCONNECTED_AFTER_MS = Number(process.env.PRUNE_DISCONNECTED_AFTER_MS || 2 * 60 * 1000);
@@ -481,16 +481,20 @@ setInterval(() => {
 
 io.on('connection', (socket) => {
   socket.emit('serverInfo', {
-    requiresPin: true,
+    requiresPin: Boolean(GAME_PIN),
     matchmaking: { enabled: true, targetSize: MATCH_SIZE, maxWaitMs: MATCH_MAX_WAIT_MS },
   });
+
+  function pinIsValid(pin) {
+    if (!GAME_PIN) return true;
+    return sanitizeText(pin || '') === GAME_PIN;
+  }
 
   socket.on('createRoom', (payload, ack) => {
     const limit = rateLimit(socket, 'createRoom', { windowMs: 5000, max: 3 });
     if (!limit.ok) return ack?.({ ok: false, error: 'rate_limited' });
 
-    const pin = sanitizeText(payload?.pin || '');
-    if (pin !== GAME_PIN) return ack?.({ ok: false, error: 'auth_failed' });
+    if (!pinIsValid(payload?.pin)) return ack?.({ ok: false, error: 'auth_failed' });
 
     const roomId = `r_${generateRoomCode()}`;
     rooms.set(roomId, createRoom(roomId));
@@ -502,14 +506,13 @@ io.on('connection', (socket) => {
     if (!limit.ok) return ack?.({ ok: false, error: 'rate_limited' });
 
     const roomId = sanitizeText(payload?.roomId || DEFAULT_ROOM_ID);
-    const pin = sanitizeText(payload?.pin || '');
     const name = sanitizeText(payload?.name || '').slice(0, NAME_MAX_LENGTH);
     const token = sanitizeText(payload?.token || '');
     if (!name) {
       socket.emit('joinError', { error: 'invalid_name' });
       return ack?.({ ok: false, error: 'invalid_name' });
     }
-    if (pin !== GAME_PIN) {
+    if (!pinIsValid(payload?.pin)) {
       socket.emit('authError', { error: 'auth_failed' });
       return ack?.({ ok: false, error: 'auth_failed' });
     }
@@ -557,10 +560,9 @@ io.on('connection', (socket) => {
     const limit = rateLimit(socket, 'quickMatch', { windowMs: 5000, max: 2 });
     if (!limit.ok) return ack?.({ ok: false, error: 'rate_limited' });
 
-    const pin = sanitizeText(payload?.pin || '');
     const name = sanitizeText(payload?.name || '').slice(0, NAME_MAX_LENGTH);
     if (!name) return ack?.({ ok: false, error: 'invalid_name' });
-    if (pin !== GAME_PIN) return ack?.({ ok: false, error: 'auth_failed' });
+    if (!pinIsValid(payload?.pin)) return ack?.({ ok: false, error: 'auth_failed' });
 
     const alreadyQueued = matchmakingQueue.some((e) => (e.payload?.name || '').toLowerCase() === name.toLowerCase() && e.socket.connected);
     if (alreadyQueued) return ack?.({ ok: false, error: 'name_in_queue' });
