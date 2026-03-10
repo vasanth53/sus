@@ -7,7 +7,12 @@
   NODE_VERSION = "20"
 
 [[redirects]]
+  from = "/socket.io/*"
+  to = "https://imposter-game-backend-obn0.onrender.com/socket.io/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
-
