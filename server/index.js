@@ -1,61 +1,83 @@
 const { listen } = require('@colyseus/tools');
-const { matchMaker, getTransport } = require('@colyseus/core');
+const { matchMaker, createEndpoint, createRouter, getBearerToken } = require('@colyseus/core');
+const { getTransport } = require('colyseus');
 
 const { ImposterRoom } = require('./ImposterRoom');
 
 const PORT = Number(process.env.PORT || 3001);
 
+function jsonResponse(body, status = 200) {
+  const json = JSON.stringify(body);
+  return new Response(json, {
+    status,
+    headers: {
+      'content-type': 'application/json',
+      'content-length': json.length.toString(),
+    },
+  });
+}
+
+function wrapSeatReservationForColyseusJs(reservation) {
+  if (!reservation || typeof reservation !== 'object') return reservation;
+  if (reservation.room) return reservation;
+
+  const { name, roomId, processId, publicAddress } = reservation;
+  if (!name || !roomId || !processId) return reservation;
+
+  return {
+    ...reservation,
+    room: { name, roomId, processId, publicAddress },
+  };
+}
+
 async function main() {
   await listen(
     {
-      initializeExpress: (app) => {
-        app.disable('x-powered-by');
-        app.use(require('express').json());
-        app.use((req, res, next) => {
-          res.setHeader('X-Content-Type-Options', 'nosniff');
-          res.setHeader('Referrer-Policy', 'no-referrer');
-          next();
-        });
+      routes: createRouter(
+        {
+          root: createEndpoint('/', { method: 'GET' }, async () => new Response('ok', { status: 200 })),
+          health: createEndpoint('/health', { method: 'GET' }, async () => jsonResponse({ ok: true })),
+        },
+        {
+          openapi: { disabled: true },
+          routerMiddleware: [
+            {
+              path: '/matchmake/:method/:roomName',
+              middleware: async (ctx) => {
+                if (ctx.method !== 'POST') return undefined;
 
-        app.get('/', (req, res) => res.status(200).send('ok'));
-        app.get('/health', (req, res) => res.status(200).json({ ok: true }));
+                if (matchMaker.state === matchMaker.MatchMakerState.SHUTTING_DOWN) {
+                  return jsonResponse({ code: 503, error: 'shutting_down' }, 503);
+                }
 
-        // Compatibility: Colyseus.js expects `response.room.*` from matchmake.
-        // Colyseus 0.17 returns a flat seat reservation (roomId/processId/name),
-        // so we wrap it for older clients.
-        app.post('/matchmake/:method/:roomName', async (req, res) => {
-          if (matchMaker.state === matchMaker.MatchMakerState.SHUTTING_DOWN) {
-            return res.status(503).json({ code: 503, error: 'shutting_down' });
-          }
+                const requestHeaders = ctx.request.headers;
+                const method = ctx.params.method;
+                const roomName = ctx.params.roomName;
 
-          const { method, roomName } = req.params;
-          try {
-            const response = await matchMaker.controller.invokeMethod(
-              method,
-              roomName,
-              req.body,
-              { headers: req.headers, ip: req.headers['x-forwarded-for'], req },
-            );
+                try {
+                  const response = await matchMaker.controller.invokeMethod(method, roomName, ctx.body, {
+                    token: getBearerToken(requestHeaders.get('authorization')),
+                    headers: requestHeaders,
+                    ip:
+                      requestHeaders.get('x-forwarded-for') ??
+                      requestHeaders.get('x-client-ip') ??
+                      requestHeaders.get('x-real-ip'),
+                    req: ctx.request,
+                  });
 
-            const transport = getTransport();
-            if (transport?.protocol !== undefined) response.protocol = transport.protocol;
+                  const transport = getTransport();
+                  if (transport?.protocol !== undefined) response.protocol = transport.protocol;
 
-            if (!response.room && response.roomId && response.processId && response.name) {
-              response.room = {
-                name: response.name,
-                roomId: response.roomId,
-                processId: response.processId,
-                publicAddress: response.publicAddress,
-              };
-            }
-
-            return res.json(response);
-          } catch (e) {
-            const code = e?.code || 500;
-            return res.status(Number(code) || 500).json({ code, error: e?.message || 'unknown' });
-          }
-        });
-      },
+                  return jsonResponse(wrapSeatReservationForColyseusJs(response));
+                } catch (e) {
+                  const code = Number(e?.code) || 500;
+                  return jsonResponse({ code, error: e?.message || 'unknown' }, code);
+                }
+              },
+            },
+          ],
+        },
+      ),
       initializeGameServer: (gameServer) => {
         gameServer.define('imposter', ImposterRoom).filterBy(['roomCode']);
       },
