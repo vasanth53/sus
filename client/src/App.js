@@ -30,6 +30,17 @@ function generateRoomCode() {
   return out;
 }
 
+function getInitialTheme() {
+  if (typeof window === 'undefined') return 'light';
+  const saved = (localStorage.getItem('imposter.theme') || '').trim().toLowerCase();
+  if (saved === 'dark' || saved === 'light') return saved;
+  try {
+    return window.matchMedia?.('(prefers-color-scheme: dark)')?.matches ? 'dark' : 'light';
+  } catch {
+    return 'light';
+  }
+}
+
 function App() {
   // General State
   const [colyseusClient, setColyseusClient] = useState(null);
@@ -62,6 +73,7 @@ function App() {
   const [votingTotalSeconds, setVotingTotalSeconds] = useState(25);
   const [clockMs, setClockMs] = useState(Date.now());
   const [lastToast, setLastToast] = useState(null);
+  const [theme, setTheme] = useState(getInitialTheme);
 
   const identityRef = useRef({ hasJoined: false, playerId: null, token: '', roomId: 'public' });
   const roomRef = useRef(null);
@@ -84,6 +96,16 @@ function App() {
     if (savedName) setName(savedName);
     if (savedToken) setPlayerToken(savedToken);
   }, []);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    document.documentElement.dataset.theme = theme;
+    try {
+      localStorage.setItem('imposter.theme', theme);
+    } catch {
+      // ignore
+    }
+  }, [theme]);
 
   useEffect(() => {
     const hasActiveTimer = Boolean(turnDeadlineMs || votingDeadlineMs);
@@ -549,6 +571,15 @@ function App() {
           </div>
         </div>
         <div className="TopBarRight">
+          <button
+            type="button"
+            className="Button ThemeToggle"
+            onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+            aria-pressed={theme === 'dark'}
+            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {theme === 'dark' ? 'Light' : 'Dark'}
+          </button>
           {hasJoined && <span className="Pill PillNeutral">You: {name}</span>}
           {gameState !== 'lobby' && gameState !== 'game-over' && (
             <span className={`Pill ${isMyTurn ? 'PillOk' : 'PillNeutral'}`}>{isMyTurn ? 'Your turn' : 'Waiting'}</span>

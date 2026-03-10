@@ -1,4 +1,5 @@
 :root {
+  color-scheme: light;
   --font-display: "IM Fell English SC", ui-serif, Georgia, "Times New Roman", serif;
   --font-body: "Patrick Hand", ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
 
@@ -17,6 +18,57 @@
   --danger: #b33a47;
   --primary: #244f86;
   --primary-2: #3c78c2;
+
+  --glow: rgba(255, 255, 255, 0.7);
+  --topbar-bg: rgba(255, 255, 255, 0.78);
+  --panel: rgba(255, 255, 255, 0.56);
+  --panel-2: rgba(255, 255, 255, 0.65);
+  --panel-3: rgba(255, 255, 255, 0.62);
+  --control-bg: rgba(255, 255, 255, 0.8);
+  --button-bg: rgba(255, 255, 255, 0.72);
+  --pill-bg: rgba(255, 255, 255, 0.66);
+  --toast-bg: rgba(255, 255, 255, 0.85);
+  --light-neutral: rgba(255, 255, 255, 0.75);
+  --spaceview-overlay-1: rgba(255, 255, 255, 0.55);
+  --spaceview-overlay-2: rgba(255, 255, 255, 0.35);
+  --spaceview-glow: rgba(255, 255, 255, 0.55);
+  --vignette-top: rgba(255, 255, 255, 0.55);
+  --vignette-bottom: rgba(30, 42, 45, 0.18);
+  --paper-subtle: rgba(255, 255, 255, 0.62);
+  --paper-subtle-2: rgba(255, 255, 255, 0.50);
+  --screen-inset: rgba(255, 255, 255, 0.25);
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --ink: #e7f1f3;
+  --ink-2: rgba(231, 241, 243, 0.72);
+  --wash: #0c1a1e;
+  --sea: #061218;
+  --sea-2: #0a1a22;
+  --paper: rgba(12, 22, 27, 0.78);
+  --paper-2: rgba(12, 22, 27, 0.62);
+  --line: rgba(231, 241, 243, 0.18);
+  --line-2: rgba(231, 241, 243, 0.08);
+
+  --glow: rgba(255, 255, 255, 0.08);
+  --topbar-bg: rgba(6, 16, 20, 0.72);
+  --panel: rgba(6, 16, 20, 0.62);
+  --panel-2: rgba(6, 16, 20, 0.58);
+  --panel-3: rgba(6, 16, 20, 0.56);
+  --control-bg: rgba(10, 18, 22, 0.75);
+  --button-bg: rgba(10, 18, 22, 0.70);
+  --pill-bg: rgba(10, 18, 22, 0.62);
+  --toast-bg: rgba(10, 18, 22, 0.86);
+  --light-neutral: rgba(10, 18, 22, 0.92);
+  --spaceview-overlay-1: rgba(255, 255, 255, 0.14);
+  --spaceview-overlay-2: rgba(255, 255, 255, 0.06);
+  --spaceview-glow: rgba(255, 255, 255, 0.10);
+  --vignette-top: rgba(0, 0, 0, 0.15);
+  --vignette-bottom: rgba(0, 0, 0, 0.35);
+  --paper-subtle: rgba(10, 18, 22, 0.62);
+  --paper-subtle-2: rgba(10, 18, 22, 0.50);
+  --screen-inset: rgba(255, 255, 255, 0.06);
 }
 
 .App {
@@ -28,7 +80,7 @@
   background:
     repeating-linear-gradient(0deg, var(--line-2) 0px, var(--line-2) 1px, transparent 1px, transparent 22px),
     repeating-linear-gradient(90deg, var(--line-2) 0px, var(--line-2) 1px, transparent 1px, transparent 22px),
-    radial-gradient(900px 520px at 20% 0%, rgba(255, 255, 255, 0.7), transparent 55%),
+    radial-gradient(900px 520px at 20% 0%, var(--glow), transparent 55%),
     linear-gradient(180deg, var(--sea), var(--sea-2));
 }
 
@@ -44,7 +96,7 @@
   border: 2px solid var(--ink);
   background:
     url("./assets/tiny-ships.svg") center / cover no-repeat,
-    linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.35));
+    linear-gradient(180deg, var(--spaceview-overlay-1), var(--spaceview-overlay-2));
   box-shadow: 6px 8px 0 rgba(30, 42, 45, 0.35);
   filter: saturate(1.02) contrast(1.02);
   overflow: hidden;
@@ -55,7 +107,7 @@
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(900px 220px at 50% 0%, rgba(255, 255, 255, 0.55), transparent 60%),
+    radial-gradient(900px 220px at 50% 0%, var(--spaceview-glow), transparent 60%),
     radial-gradient(900px 280px at 20% 40%, rgba(36, 79, 134, 0.09), transparent 60%),
     radial-gradient(900px 280px at 80% 50%, rgba(47, 158, 122, 0.07), transparent 60%);
   pointer-events: none;
@@ -67,8 +119,8 @@
   z-index: 0;
   pointer-events: none;
   background:
-    radial-gradient(1200px 680px at 50% 10%, rgba(255, 255, 255, 0.55), transparent 60%),
-    radial-gradient(1400px 900px at 50% 100%, rgba(30, 42, 45, 0.18), transparent 60%);
+    radial-gradient(1200px 680px at 50% 10%, var(--vignette-top), transparent 60%),
+    radial-gradient(1400px 900px at 50% 100%, var(--vignette-bottom), transparent 60%);
 }
 
 .TopBar {
@@ -81,7 +133,7 @@
   gap: 12px;
   padding: 14px 18px;
   border-bottom: 2px solid var(--ink);
-  background: rgba(255, 255, 255, 0.78);
+  background: var(--topbar-bg);
   backdrop-filter: blur(8px);
 }
 
@@ -130,7 +182,7 @@
   position: relative;
   padding: 16px;
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.56);
+  background: var(--panel);
   border: 2px solid var(--ink);
   box-shadow: 8px 10px 0 rgba(30, 42, 45, 0.34);
 }
@@ -147,7 +199,7 @@
   background:
     linear-gradient(180deg, var(--paper), var(--paper-2));
   border: 2px solid var(--ink);
-  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.25);
+  box-shadow: inset 0 0 0 2px var(--screen-inset);
 }
 
 .MonitorScreen::before {
@@ -175,7 +227,7 @@
   gap: 12px;
   padding: 10px 12px;
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.55);
+  background: var(--panel);
   border: 2px solid var(--ink);
   box-shadow: 4px 6px 0 rgba(30, 42, 45, 0.26);
 }
@@ -190,7 +242,7 @@
   height: 12px;
   border-radius: 999px;
   border: 2px solid var(--ink);
-  background: rgba(255, 255, 255, 0.75);
+  background: var(--light-neutral);
   box-shadow: 1px 1px 0 rgba(30, 42, 45, 0.25);
 }
 
@@ -204,7 +256,7 @@
   background: rgba(179, 58, 71, 0.75);
 }
 .Light.Neutral {
-  background: rgba(255, 255, 255, 0.75);
+  background: var(--light-neutral);
 }
 
 .ConsoleText {
@@ -224,7 +276,7 @@
   width: 16px;
   height: 16px;
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.65);
+  background: var(--panel-2);
   border: 2px solid var(--ink);
   box-shadow: 1px 1px 0 rgba(30, 42, 45, 0.22);
 }
@@ -250,7 +302,7 @@
 }
 
 .Card.Subtle {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.50));
+  background: linear-gradient(180deg, var(--paper-subtle), var(--paper-subtle-2));
 }
 
 .CardTitle {
@@ -309,7 +361,7 @@
   height: 42px;
   border-radius: 12px;
   border: 2px solid var(--ink);
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--control-bg);
   color: var(--ink);
   padding: 0 12px;
   outline: none;
@@ -333,7 +385,7 @@
   padding: 0 14px;
   border-radius: 12px;
   border: 2px solid var(--ink);
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--button-bg);
   color: var(--ink);
   cursor: pointer;
   transition: transform 90ms ease, box-shadow 90ms ease;
@@ -360,6 +412,13 @@
   box-shadow: 3px 4px 0 rgba(30, 42, 45, 0.2);
 }
 
+.Button.ThemeToggle {
+  height: 34px;
+  padding: 0 12px;
+  font-size: 13px;
+  letter-spacing: 0.25px;
+}
+
 .Button.Primary {
   background: linear-gradient(180deg, rgba(60, 120, 194, 0.36), rgba(36, 79, 134, 0.20));
 }
@@ -372,7 +431,7 @@
   padding: 0 10px;
   border-radius: 999px;
   border: 2px solid var(--ink);
-  background: rgba(255, 255, 255, 0.66);
+  background: var(--pill-bg);
   font-size: 14px;
   color: var(--ink-2);
   font-family: var(--font-display);
@@ -408,7 +467,7 @@
   gap: 10px;
   padding: 10px 12px;
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.62);
+  background: var(--panel-3);
   border: 2px solid var(--ink);
   box-shadow: 3px 4px 0 rgba(30, 42, 45, 0.26);
 }
@@ -457,7 +516,7 @@
   padding: 0 6px;
   border-radius: 10px;
   border: 2px solid var(--ink);
-  background: rgba(255, 255, 255, 0.58);
+  background: var(--panel-3);
 }
 
 .WordBox {
@@ -465,7 +524,7 @@
   padding: 12px;
   border-radius: 14px;
   border: 2px dashed rgba(30, 42, 45, 0.55);
-  background: rgba(255, 255, 255, 0.62);
+  background: var(--panel-3);
 }
 
 .WordLabel {
@@ -492,7 +551,7 @@
   gap: 10px;
   padding: 10px 12px;
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.62);
+  background: var(--panel-3);
   border: 2px solid rgba(30, 42, 45, 0.8);
   box-shadow: 2px 3px 0 rgba(30, 42, 45, 0.22);
 }
@@ -528,7 +587,7 @@
 .TimerTrack {
   height: 12px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.62);
+  background: var(--panel-3);
   border: 2px solid var(--ink);
   overflow: hidden;
 }
@@ -565,7 +624,7 @@
   padding: 10px 12px;
   border-radius: 14px;
   border: 2px solid var(--ink);
-  background: rgba(255, 255, 255, 0.85);
+  background: var(--toast-bg);
   color: var(--ink);
   font-size: 16px;
   box-shadow: 5px 6px 0 rgba(30, 42, 45, 0.24);
@@ -582,7 +641,7 @@
   padding: 10px 12px;
   border-radius: 14px;
   border: 2px solid var(--ink);
-  background: rgba(255, 255, 255, 0.64);
+  background: var(--panel-3);
   margin-top: 10px;
 }
 
