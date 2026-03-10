@@ -1,44 +1,43 @@
-const express = require('express');
-const http = require('http');
-const { Server } = require('colyseus');
-const { WebSocketTransport } = require('@colyseus/ws-transport');
+const { listen } = require('@colyseus/tools');
 
 const { ImposterRoom } = require('./ImposterRoom');
 
-const app = express();
-app.disable('x-powered-by');
-app.use((req, res, next) => {
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('Referrer-Policy', 'no-referrer');
-  next();
-});
+const PORT = Number(process.env.PORT || 3001);
 
-app.get('/', (req, res) => res.status(200).send('ok'));
-app.get('/health', (req, res) => res.status(200).json({ ok: true }));
+async function main() {
+  await listen(
+    {
+      initializeExpress: (app) => {
+        app.disable('x-powered-by');
+        app.use((req, res, next) => {
+          res.setHeader('X-Content-Type-Options', 'nosniff');
+          res.setHeader('Referrer-Policy', 'no-referrer');
+          next();
+        });
 
-const server = http.createServer(app);
-
-const gameServer = new Server({
-  transport: new WebSocketTransport({
-    server,
-  }),
-});
-
-gameServer.define('imposter', ImposterRoom).filterBy(['roomCode']);
-gameServer.onShutdown(() => {});
-
-const PORT = process.env.PORT || 3001;
-const HOST = process.env.HOST || '0.0.0.0';
+        app.get('/', (req, res) => res.status(200).send('ok'));
+        app.get('/health', (req, res) => res.status(200).json({ ok: true }));
+      },
+      initializeGameServer: (gameServer) => {
+        gameServer.define('imposter', ImposterRoom).filterBy(['roomCode']);
+      },
+      options: {
+        // Matchmaker/monitor CORS is handled by Colyseus internals.
+        // Per-room origin enforcement lives in ImposterRoom.onAuth().
+      },
+      displayLogs: true,
+    },
+    PORT,
+  );
+}
 
 if (require.main === module) {
-  gameServer.listen(PORT, HOST).then(() => {
+  main().catch((err) => {
     // eslint-disable-next-line no-console
-    console.log(`Server listening on ${HOST}:${PORT}`);
+    console.error(err);
+    process.exit(1);
   });
 }
 
-module.exports = {
-  app,
-  server,
-  gameServer,
-};
+module.exports = { main };
+
