@@ -36,7 +36,11 @@ class ImposterRoom extends Room {
   }
 
   onAuth(client, options, request) {
-    const origin = request?.headers?.origin;
+    const origin =
+      request?.headers?.origin ||
+      request?.headers?.get?.('origin') ||
+      client?.request?.headers?.origin ||
+      client?.request?.headers?.get?.('origin');
     if (!originIsAllowed(allowedOrigins, origin)) {
       throw new Error('origin_not_allowed');
     }
