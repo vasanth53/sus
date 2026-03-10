@@ -186,7 +186,11 @@ function publicPlayers(room) {
 }
 
 function broadcastLobby(room) {
-  io.to(room.id).emit('updatePlayerList', publicPlayers(room));
+  const players = publicPlayers(room);
+  // Legacy event (array only)
+  io.to(room.id).emit('updatePlayerList', players);
+  // V2 event includes roomId so clients can ignore stale room broadcasts
+  io.to(room.id).emit('updatePlayerListV2', { roomId: room.id, players });
 }
 
 function findPlayerByName(room, name) {
@@ -696,6 +700,7 @@ module.exports = {
   rooms,
   createRoom,
   getOrCreateRoom,
+  attachSocket,
   startGame,
   resetRoomGame,
 };

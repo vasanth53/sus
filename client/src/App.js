@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import io from 'socket.io-client';
 import './App.css';
 
@@ -54,6 +54,16 @@ function App() {
   const [clockMs, setClockMs] = useState(Date.now());
   const [lastToast, setLastToast] = useState(null);
 
+  const identityRef = useRef({ hasJoined: false, playerId: null, token: '', roomId: 'public' });
+  useEffect(() => {
+    identityRef.current = {
+      hasJoined: Boolean(hasJoined),
+      playerId: myPlayerId,
+      token: (playerToken || localStorage.getItem('imposter.token') || '').trim(),
+      roomId: currentRoomId,
+    };
+  }, [hasJoined, myPlayerId, playerToken, currentRoomId]);
+
   useEffect(() => {
     const savedName = localStorage.getItem('imposter.name') || '';
     const savedToken = localStorage.getItem('imposter.token') || '';
@@ -79,7 +89,19 @@ function App() {
     newSocket.on('disconnect', () => setConnectionStatus('disconnected'));
     newSocket.on('connect_error', () => setConnectionStatus('error'));
 
-    newSocket.on('updatePlayerList', (players) => setLobbyPlayers(players));
+    newSocket.on('updatePlayerListV2', (payload) => {
+      const roomId = payload?.roomId;
+      const players = payload?.players;
+      if (!roomId || !Array.isArray(players)) return;
+      if (identityRef.current.roomId && roomId !== identityRef.current.roomId) return;
+      setLobbyPlayers(players);
+    });
+    // Legacy server payload (no roomId). Keep this for older servers, but it
+    // can cause stale updates if a socket is accidentally in multiple rooms.
+    newSocket.on('updatePlayerList', (players) => {
+      if (!Array.isArray(players)) return;
+      setLobbyPlayers(players);
+    });
     newSocket.on('gameInProgress', () => alert("A game is already in progress. Please wait."));
     newSocket.on('authError', () => setLastToast({ type: 'warning', message: 'Wrong PIN. Try again.' }));
     newSocket.on('nameTaken', () => setLastToast({ type: 'warning', message: 'That name is already taken.' }));
@@ -150,6 +172,19 @@ function App() {
 
     newSocket.on('stateSync', (data) => {
       if (!data) return;
+      const expectedPlayerId = identityRef.current.playerId;
+      const expectedToken = identityRef.current.token;
+      const incomingPlayerId = data?.me?.id || null;
+      const incomingToken = (data?.me?.token || '').trim();
+
+      // Safety: ignore stray stateSync events (e.g. if the socket is still
+      // subscribed to an old room and receives a different player's "me").
+      // Once we have an identity, only accept stateSync for that identity.
+      if (identityRef.current.hasJoined) {
+        if (expectedPlayerId && incomingPlayerId && incomingPlayerId !== expectedPlayerId) return;
+        if (expectedToken && incomingToken && incomingToken !== expectedToken) return;
+      }
+
       setHasJoined(true);
       if (data.roomId) setCurrentRoomId(data.roomId);
       setGameState(data.gameState || 'lobby');
