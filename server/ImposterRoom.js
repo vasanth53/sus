@@ -276,7 +276,8 @@ class ImposterRoom extends Room {
     if (!me || !me.connected || !me.isAlive) return;
     if (me.name !== this.state.currentPlayer) return;
 
-    const clueText = sanitizeText(payload?.clue ?? payload ?? '').slice(0, 32);
+    const cluePayload = payload && typeof payload === 'object' ? payload.clue : payload;
+    const clueText = sanitizeText(typeof cluePayload === 'string' ? cluePayload : '').slice(0, 32);
     if (!clueText) return;
 
     const c = new ClueState();
