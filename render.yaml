@@ -1,7 +1,10 @@
 services:
   - type: web
-    name: imposter-game
+    name: imposter-game-backend   # keep: matches the existing Render service so it is updated, not duplicated
     runtime: docker
+    rootDir: .
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
     plan: free
     autoDeploy: true
     healthCheckPath: /health
