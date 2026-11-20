@@ -65,13 +65,15 @@
          :player-id (:id existing)}
         {:error "name_taken"})
 
-      (>= (count (connected-ids room)) (or max-players 10)) {:error "room_full"}
+      ;; counts away-but-reclaimable seats too, so rename loops can't grow the room
+      (>= (count (:players room)) (or max-players 10)) {:error "room_full"}
 
       :else
       (let [pid (sus.game/token 8)]
         {:room (-> room
                    (assoc-in [:players pid] {:id pid :name name :n (:next-n room) :uid uid
-                                             :connected true :alive true :voted false
+                                             :connected true :voted false
+                                             :alive (= "lobby" (:phase room)) ; late joiners watch until next round
                                              :token (sus.game/token 24) :role nil :word nil})
                    (update :next-n inc)
                    (update :host-id #(or % pid))
@@ -81,11 +83,11 @@
 (defn disconnect
   "Only the socket currently holding the seat can release it; a reclaimed seat ignores its old tab closing."
   [room pid uid]
-  (if (= uid (get-in room [:players pid :uid]))
-    (-> room
-        (update-in [:players pid] assoc :connected false :uid nil)
-        reassign-host-if-gone)
-    room))
+  (cond
+    (not= uid (get-in room [:players pid :uid])) room
+    ;; in the lobby there is nothing to come back to, so free the seat and name
+    (= "lobby" (:phase room)) (-> room (update :players dissoc pid) reassign-host-if-gone)
+    :else (update-in room [:players pid] assoc :connected false :uid nil)))
 
 ;; --- round ---
 
@@ -100,7 +102,7 @@
            secret (pick pool)
            decoy (loop [d (pick pool) guard 0]
                    (if (and (= d secret) (< guard 10)) (recur (pick pool) (inc guard)) d))
-           order (vec (sort-by (fn [_] (rng)) ids))
+           order (vec (shuffle ids))
            imposter (pick order)]
        {:ok true
         :secret-word secret
@@ -138,7 +140,7 @@
 
 (defn- advance-turn [room now]
   (if (< (count (connected-alive-ids room)) 2)
-    room ; same as the original: the round stalls until players come back
+    room ; tick sends the abandoned round back to the lobby
     (let [order (:turn-order room)
           next-name (get order (inc (.indexOf ^java.util.List order (:current-player room))))]
       (if next-name
@@ -161,14 +163,13 @@
   (let [{:keys [ejected-id]} (tally-votes (:votes room))
         room (cond-> room (get-in room [:players ejected-id]) (assoc-in [:players ejected-id :alive] false))
         ps (players-in-order room)
-        imposter (first (filter #(= "imposter" (:role %)) ps))
-        alive-crew (count (filter #(and (:alive %) (= "crewmate" (:role %))) ps))]
+        imposter (first (filter #(= "imposter" (:role %)) ps))]
     (assoc room
            :phase "game-over"
            :turn-deadline 0
            :voting-deadline 0
            :reset-at (+ now 4500)
-           :game-over {:winner (if (and (:alive imposter) (<= alive-crew 1)) "Imposter" "Crewmates")
+           :game-over {:winner (if (and imposter (= ejected-id (:id imposter))) "Crewmates" "Imposter")
                        :ejected (get-in room [:players ejected-id :name] "")
                        :imposter (:name imposter "")
                        :secret-word (or (:word (first (filter #(= "crewmate" (:role %)) ps))) "")})))
@@ -176,7 +177,8 @@
 (defn cast-vote [room pid target now]
   (let [me (get-in room [:players pid])
         target (get-in room [:players (sanitize-text target)])]
-    (if-not (and (= "voting" (:phase room)) (:connected me) (:alive me) (not (:voted me)) (:alive target))
+    (if-not (and (= "voting" (:phase room)) (:connected me) (:alive me) (:role me) (not (:voted me))
+                 (:alive target) (:role target))
       room
       (let [room (-> room
                      (assoc-in [:players pid :voted] true)
@@ -186,9 +188,13 @@
           (finalize-voting room now)
           room)))))
 
+(defn- everyone-voted? [room]
+  (every? #(get-in room [:players % :voted]) (connected-alive-ids room)))
+
 (defn- reset-to-lobby [room]
   (-> room
-      (update :players #(update-vals % (fn [p] (assoc p :alive true :voted false :role nil :word nil))))
+      (update :players #(into {} (for [[id p] % :when (:connected p)]
+                                   [id (assoc p :alive true :voted false :role nil :word nil)])))
       (assoc :phase "lobby" :turn-order [] :current-player "" :clues [] :votes []
              :turn-deadline 0 :voting-deadline 0 :reset-at 0 :game-over nil)
       reassign-host-if-gone))
@@ -197,11 +203,14 @@
   "Applies whichever deadline has passed. Safe to call as often as you like."
   [room now]
   (let [past? #(and (pos? %) (>= now %))]
-    (case (:phase room)
-      "clue-giving" (if (and (past? (:turn-deadline room)) (>= (count (connected-alive-ids room)) 2))
+    (case (if (and (#{"clue-giving" "voting"} (:phase room)) (< (count (connected-alive-ids room)) 2))
+            "abandoned"
+            (:phase room))
+      "abandoned" (reset-to-lobby room)
+      "clue-giving" (if (past? (:turn-deadline room))
                       (-> room (add-clue (:current-player room) "(timeout)") (advance-turn now))
                       room)
-      "voting" (if (past? (:voting-deadline room)) (finalize-voting room now) room)
+      "voting" (if (or (past? (:voting-deadline room)) (everyone-voted? room)) (finalize-voting room now) room)
       "game-over" (if (past? (:reset-at room)) (reset-to-lobby room) room)
       room)))
 

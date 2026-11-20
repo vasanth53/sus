@@ -53,6 +53,8 @@
     (when (and room (not= room (get-in old [:rooms code])))
       (broadcast! room))))
 
+(defn- seat [uid] (get-in @state [:seats uid]))
+
 (defn- leave! [uid]
   (when-let [[code pid] (get-in @state [:seats uid])]
     (swap! state update :seats dissoc uid)
@@ -62,8 +64,17 @@
   (let [code (str/upper-case (game/sanitize-text room-code))
         opts {:turn-seconds (:turn-seconds config) :voting-seconds (:voting-seconds config)}
         result (atom nil)]
-    (if (str/blank? code)
-      {:error "invalid_room"}
+    (cond
+      (not (re-matches #"[A-Z0-9]{4,8}" code)) {:error "invalid_room"}
+
+      ;; reconnecting into the seat we already hold: keep it (and host) as is
+      (let [[seat-code pid] (seat uid)
+            p (get-in @state [:rooms code :players pid])]
+        (and (= seat-code code) (= uid (:uid p))
+             (= (str/lower-case (:name p)) (str/lower-case (game/sanitize-text name)))))
+      (do (broadcast! (get-in @state [:rooms code])) {:ok true :room-code code})
+
+      :else
       (do
         (leave! uid)
         (swap! state
@@ -80,11 +91,11 @@
           (do (broadcast! room) {:ok true :room-code code})
           (select-keys @result [:error]))))))
 
-(defn- seat [uid] (get-in @state [:seats uid]))
-
 (defn handle-event! [{:keys [id uid ?data ?reply-fn]}]
   (let [[code pid] (seat uid)
-        in-room! (fn [f] (when code (update-room! code f)))]
+        ;; ignore a stale tab whose seat was reclaimed elsewhere with the token
+        in-room! (fn [f] (when code
+                           (update-room! code #(if (= uid (get-in % [:players pid :uid])) (f %) %))))]
     (case id
       :sus/join (when ?reply-fn (?reply-fn (join! uid ?data)))
       :sus/start (in-room! #(game/start-game % pid (now) {}))
@@ -101,8 +112,10 @@
 
 (defn- routes [{:keys [request-method uri] :as req}]
   (case [request-method uri]
-    [:get "/chsk"] ((:ajax-get-or-ws-handshake-fn chsk) req)
-    [:post "/chsk"] ((:ajax-post-fn chsk) req)
+    ;; websocket only: Sente's ajax transport lets a client hold seats without ever opening a socket
+    [:get "/chsk"] (if (:websocket? req)
+                     ((:ajax-get-or-ws-handshake-fn chsk) req)
+                     (resp/bad-request "websocket required"))
     [:get "/health"] (resp/content-type (resp/response "{\"ok\":true}") "application/json")
     [:get "/"] (-> (resp/resource-response "public/index.html") (resp/content-type "text/html"))
     (or (some-> (resp/resource-response uri {:root "public"}) (resp/content-type
@@ -118,8 +131,8 @@
 (defn start! []
   (sente/start-server-chsk-router! (:ch-recv chsk) handle-event!)
   ;; shortcut: polls every room 4x/s for expired deadlines; fine for hobby scale, switch to per-room scheduled tasks if rooms number in the thousands
-  (future (while true (Thread/sleep 250) (try (tick-all!) (catch Exception e (.printStackTrace e)))))
-  (let [stop (http/run-server #'app (select-keys config [:port :host]))]
+  (future (while true (Thread/sleep 250) (try (tick-all!) (catch Throwable e (.printStackTrace e)))))
+  (let [stop (http/run-server #'app (assoc (select-keys config [:port :host]) :max-ws 65536))]
     (println (str "sus listening on http://" (:host config) ":" (:port config)))
     stop))
 

@@ -141,6 +141,23 @@ try {
   await Bob.getByText('You are the host.').waitFor({ timeout: 10000 });
   step('host left → Bob promoted to host');
 
+  // Review regressions: no seats without a socket, no oversized room codes.
+  const post = await fetch(`${URL}chsk`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: `client-id=ghost&ppstr=${encodeURIComponent(`[[:sus/join {:name "G" :room-code "${code}" :create? true}] 0]`)}`,
+  });
+  assert.ok(post.status >= 400, `POST /chsk must be rejected, got ${post.status}`);
+  assert.equal((await fetch(`${URL}chsk?client-id=x`)).status, 400, 'ajax handshake rejected');
+  const odd = await (await browser.newContext()).newPage();
+  await odd.goto(URL);
+  await odd.getByText('Connected').waitFor();
+  await odd.getByPlaceholder('Name').fill('Zed');
+  await odd.getByPlaceholder('Room code').fill('X'.repeat(50));
+  await odd.getByRole('button', { name: 'Join', exact: true }).click();
+  await odd.getByText('Join failed: invalid_room').waitFor();
+  step('ajax POST/GET transport and oversized room codes are rejected');
+
   console.log('\nE2E PASSED');
 } catch (e) {
   console.error('\nE2E FAILED:', e);
