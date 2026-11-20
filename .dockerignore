@@ -1,10 +1,5 @@
+node_modules
+.cpcache
+.shadow-cljs
+resources/public/js
 .git
-**/.git
-
-**/node_modules
-**/build
-**/.cache
-**/.DS_Store
-
-npm-debug.log
-yarn-error.log

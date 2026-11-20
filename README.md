@@ -1,92 +1,44 @@
 # Imposter Word Game
 
-Small multiplayer “imposter word” game:
-- `server/`: Express + Colyseus game server
-- `client/`: React (Create React App) UI
+Small multiplayer "imposter word" game, in Clojure + ClojureScript.
 
-## Run with Docker (recommended)
+- `src/sus/game.clj` — pure game rules (rooms, turns, votes, timeouts)
+- `src/sus/server.clj` — http-kit server; [Sente](https://github.com/taoensso/sente) over WebSocket (`/chsk`); serves the client
+- `src/sus/client.cljs` — Reagent UI, built with shadow-cljs into `resources/public/js`
+- `src/sus/util.clj` — origin allowlist for the WebSocket handshake
 
-Prereqs: Docker + Docker Compose.
+Each client gets its own view of the room pushed as `:sus/state` (public state + only its own word and token).
+Client → server events: `:sus/join` (with reply), `:sus/start`, `:sus/clue`, `:sus/vote`.
+
+## Run locally
+
+Prereqs: Java 21, Clojure CLI, Node 20+.
 
 ```bash
-docker compose up --build
-```
-
-- Frontend: `http://localhost:3000`
-- Backend: `http://localhost:3001`
-
-Stop:
-```bash
-docker compose down
-```
-
-## Run locally (no Docker)
-
-Prereqs: Node.js (recommended: Node 20+).
-
-Backend:
-```bash
-cd server
 npm ci
-node index.js
+npm run build          # or `npm run watch` while developing
+clojure -M:run         # http://localhost:3001
 ```
 
-Frontend:
+## Run with Docker
+
 ```bash
-cd client
-npm ci
-npm start
+docker compose up --build   # http://localhost:3001
 ```
-
-Open `http://localhost:3000`.
 
 ## Configuration
 
-Backend env vars:
-- `PORT` (default `3001`)
-- `HOST` (default `0.0.0.0`)
-- `CLIENT_ORIGIN` (default `http://localhost:3000`) — allowed browser Origin(s) (comma-separated) or `*`
-- `MAX_PLAYERS` (default `10`)
-
-Frontend env vars (CRA build-time):
-- `REACT_APP_SOCKET_URL` (default: computed from browser host + `:3001`)
+- `PORT` (default `3001`), `HOST` (default `0.0.0.0`)
+- `CLIENT_ORIGIN` — allowed browser Origin(s) for the WebSocket: exact origin, `host[:port]`, `*.suffix`, comma-separated, or `*`. Unset allows any.
+- `MAX_PLAYERS` (default `10`), `TURN_SECONDS` (default `30`), `VOTING_SECONDS` (default `25`)
 
 ## Tests
 
 ```bash
-cd server && npm test
-cd client && CI=true npm test
+clojure -M:test                 # unit tests (game rules, origin allowlist)
+npm run build && npm run e2e    # boots the server, plays a full round with 3 headless Chromium players
 ```
 
 ## Deploy
 
-### Frontend on Netlify
-
-This repo includes a `netlify.toml` that builds/publishes the React app from `client/`.
-
-In Netlify site settings, set this build-time env var:
-- `REACT_APP_SOCKET_URL` = your backend URL (example: `https://imposter-game-backend.onrender.com`)
-
-Tip: see `client/.env.example`.
-
-### Backend (Socket.IO) hosting
-
-Netlify Functions/Edge Functions are request-based and don’t run a long-lived Colyseus server, so the backend needs a WebSocket-capable host (Render/Fly/Railway/etc).
-
-Backend required env vars:
-- `CLIENT_ORIGIN` (set to your Netlify site URL; you can use a comma-separated list, or `*` to allow any origin)
-
-Tip: see `server/.env.example`.
-
-#### Render quickstart
-
-Option A (recommended): use the included `render.yaml` blueprint.
-
-Option B (manual):
-- Create a new **Web Service** in Render from this repo
-- Root directory: `server`
-- Build command: `npm ci`
-- Start command: `npm start`
-- Env vars: `CLIENT_ORIGIN`
-
-After Render deploys, copy the service URL and set Netlify `REACT_APP_SOCKET_URL` to that URL, then redeploy the Netlify site.
+One service serves both the page and the WebSocket. `render.yaml` deploys the `Dockerfile` to Render; set `CLIENT_ORIGIN` to the service URL.
