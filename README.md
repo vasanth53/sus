@@ -41,4 +41,8 @@ npm run build && npm run e2e    # boots the server, plays a full round with 3 he
 
 ## Deploy
 
-One service serves both the page and the WebSocket. `render.yaml` deploys the `Dockerfile` to Render; set `CLIENT_ORIGIN` to the service URL.
+Render only: one Docker service serves both the page and the WebSocket.
+
+`render.yaml` keeps the existing service name `imposter-game-backend` and switches it from the old Node runtime (root dir `server/`) to the root `Dockerfile`. Sync the Blueprint in Render, then set `CLIENT_ORIGIN` to the service's own URL (e.g. `https://imposter-game-backend.onrender.com`).
+
+If the service was created by hand rather than from the Blueprint, change it in the Render dashboard instead: Settings → Root Directory: empty, Runtime/Language: Docker, Dockerfile path `./Dockerfile`.
