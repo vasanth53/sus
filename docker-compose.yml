@@ -1,22 +1,8 @@
 services:
-  server:
-    build:
-      context: ./server
+  app:
+    build: .
     environment:
       PORT: "3001"
-      HOST: "0.0.0.0"
-      CLIENT_ORIGIN: "http://localhost:3000"
-      GAME_PIN: "1234"
+      CLIENT_ORIGIN: "http://localhost:3001"
     ports:
       - "3001:3001"
-
-  client:
-    build:
-      context: ./client
-      args:
-        # If omitted, the app will default to `${window.location.protocol}//${window.location.hostname}:3001`
-        REACT_APP_SOCKET_URL: "http://localhost:3001"
-    depends_on:
-      - server
-    ports:
-      - "3000:80"
